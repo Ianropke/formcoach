@@ -1,0 +1,11 @@
+{
+  "name": "formcoach",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "cd web && npm run dev",
+    "build": "cd web && npm install && npm run build",
+    "test": "cd web && npm run test",
+    "preview": "cd web && npm run preview"
+  }
+}
