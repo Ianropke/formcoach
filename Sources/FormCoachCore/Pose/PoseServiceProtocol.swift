@@ -1,6 +1,7 @@
 import Foundation
 import CoreMedia
 import CoreGraphics
+import ImageIO
 
 /// Abstraction protocol for pose estimation backends
 public protocol PoseServiceProtocol: Sendable {
