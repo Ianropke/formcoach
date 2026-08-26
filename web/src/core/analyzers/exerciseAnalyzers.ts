@@ -1,9 +1,50 @@
-import { PoseFrame, Repetition, SetAnalysis, CameraViewType, FormObservation, ExerciseType } from '../models';
+import { PoseFrame, Repetition, SetAnalysis, CameraViewType, FormObservation, ExerciseType, FormStabilityStatus } from '../models';
 import { AngleCalculator } from '../angleCalculator';
 
 export interface ExerciseAnalyzer {
   segmentReps(frames: PoseFrame[], view: CameraViewType): Repetition[];
   analyzeSet(reps: Repetition[], frames: PoseFrame[], view: CameraViewType): SetAnalysis;
+}
+
+// -----------------------------------------------------------------------------
+// Statistical & Mathematical Helpers
+// -----------------------------------------------------------------------------
+function computeStats(values: number[]): { mean: number; stdDev: number } {
+  if (values.length === 0) return { mean: 0, stdDev: 0 };
+  const mean = values.reduce((a, b) => a + b, 0) / values.length;
+  if (values.length === 1) return { mean: Math.round(mean * 10) / 10, stdDev: 0 };
+  const variance = values.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / (values.length - 1);
+  const stdDev = Math.sqrt(variance);
+  return {
+    mean: Math.round(mean * 10) / 10,
+    stdDev: Math.round(stdDev * 10) / 10
+  };
+}
+
+function determineStabilityStatus(romStdDev: number, meanROM: number, peakDrift = 0): FormStabilityStatus {
+  const cv = meanROM > 0 ? (romStdDev / meanROM) * 100 : 0;
+  if (cv <= 6.0 && peakDrift < 12) return 'STRICT_STABILITY';
+  if (cv <= 14.0 && peakDrift < 20) return 'MODERATE_VARIANCE';
+  return 'HIGH_DEVIATION';
+}
+
+function emptySetAnalysis(): SetAnalysis {
+  return {
+    overallScore: 0,
+    romScore: 0,
+    consistencyScore: 0,
+    tempoScore: 0,
+    primaryObservation: 'No completed repetitions detected in this set.',
+    observations: [],
+    repCount: 0,
+    meanROM: 0,
+    romStdDev: 0,
+    meanDuration: 0,
+    tempoStdDev: 0,
+    concentricMean: 0,
+    eccentricMean: 0,
+    stabilityStatus: 'HIGH_DEVIATION'
+  };
 }
 
 // -----------------------------------------------------------------------------
@@ -58,7 +99,7 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
               duration,
               concentricDuration: Math.max(0.2, t - inflectionTime),
               eccentricDuration: Math.max(0.2, inflectionTime - startTime),
-              primaryROM: minKneeAngle,
+              primaryROM: Math.round(minKneeAngle * 10) / 10,
               confidence: f.confidence
             });
           }
@@ -71,22 +112,26 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
 
   public analyzeSet(reps: Repetition[]): SetAnalysis {
     if (reps.length === 0) return emptySetAnalysis();
-    const meanROM = reps.reduce((a, b) => a + b.primaryROM, 0) / reps.length;
-    const meanDur = reps.reduce((a, b) => a + b.duration, 0) / reps.length;
+
+    const romStats = computeStats(reps.map(r => r.primaryROM));
+    const tempoStats = computeStats(reps.map(r => r.duration));
+    const eccMean = Math.round((reps.reduce((a, b) => a + b.eccentricDuration, 0) / reps.length) * 10) / 10;
+    const conMean = Math.round((reps.reduce((a, b) => a + b.concentricDuration, 0) / reps.length) * 10) / 10;
+
     const observations: FormObservation[] = [];
 
-    // Early vs late ROM delta
+    // Early vs late ROM delta (fatigue tracking)
     let delta = 0;
     if (reps.length >= 4) {
       const half = Math.min(4, Math.floor(reps.length / 2));
       const early = reps.slice(0, half).reduce((a, b) => a + b.primaryROM, 0) / half;
       const late = reps.slice(-half).reduce((a, b) => a + b.primaryROM, 0) / half;
-      delta = ((late - early) / early) * 100;
-      if (delta >= 12) {
+      delta = Math.round(((late - early) / early) * 100);
+      if (delta >= 10) {
         observations.push({
           id: 'squat.rom.decay',
           title: 'Depth Decay Detected',
-          detail: `Squat depth became shallower by ~${Math.round(delta)}% on late repetitions due to fatigue.`,
+          detail: `Squat depth became shallower by ~${delta}% on late repetitions due to fatigue.`,
           evidence: `Late reps reached ${Math.round(late)}° vs early ${Math.round(early)}°.`,
           severity: 'warning',
           affectedReps: reps.slice(-half).map(r => r.index)
@@ -94,38 +139,51 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
       }
     }
 
-    if (meanROM <= 88) {
+    if (romStats.mean <= 88) {
       observations.push({
         id: 'squat.depth.parallel',
         title: 'Deep & Parallel Squats',
-        detail: `Consistently achieved full ~${Math.round(meanROM)}° depth across all ${reps.length} reps.`,
+        detail: `Consistently achieved full ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) depth across all ${reps.length} reps.`,
         evidence: `Full range of motion verified mathematically.`,
         severity: 'positive',
         affectedReps: reps.map(r => r.index)
       });
-    } else if (meanROM >= 110) {
+    } else if (romStats.mean >= 105) {
       observations.push({
         id: 'squat.depth.shallow',
         title: 'Shallow Depth Warning',
-        detail: `Squats reached ~${Math.round(meanROM)}° depth (did not reach parallel). Aim for ~85°-90°.`,
-        evidence: `Knee flexion remained above 110°.`,
+        detail: `Squats reached ~${Math.round(romStats.mean)}° depth (above parallel). Target ≤88° for full quad engagement.`,
+        evidence: `Knee flexion remained above 105°.`,
         severity: 'warning',
         affectedReps: reps.map(r => r.index)
       });
     }
 
-    const romScore = meanROM <= 90 ? 98 : Math.max(50, 90 - (meanROM - 90) * 1.5);
+    const stabilityStatus = determineStabilityStatus(romStats.stdDev, romStats.mean);
+    const cvROM = romStats.mean > 0 ? (romStats.stdDev / romStats.mean) : 0;
+    const cvTempo = tempoStats.mean > 0 ? (tempoStats.stdDev / tempoStats.mean) : 0;
+
+    const consistencyScore = Math.max(50, Math.min(100, Math.round(100 - cvROM * 200)));
+    const tempoScore = Math.max(50, Math.min(100, Math.round(100 - cvTempo * 150)));
+    const romScore = romStats.mean <= 88 ? 98 : Math.max(50, Math.round(98 - (romStats.mean - 88) * 1.5));
+    const overallScore = Math.round(romScore * 0.4 + consistencyScore * 0.3 + tempoScore * 0.3);
+
     return {
-      overallScore: Math.round(romScore * 0.4 + 92 * 0.3 + 90 * 0.3),
-      romScore: Math.round(romScore),
-      consistencyScore: 92,
-      tempoScore: 90,
-      primaryObservation: observations[0]?.detail || `Solid squat session with ${reps.length} reps at ~${Math.round(meanROM)}° depth.`,
+      overallScore,
+      romScore,
+      consistencyScore,
+      tempoScore,
+      primaryObservation: observations[0]?.detail || `Solid squat session with ${reps.length} reps at ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) depth.`,
       observations,
       repCount: reps.length,
-      meanROM,
-      meanDuration: meanDur,
-      earlyLateROMDelta: delta
+      meanROM: romStats.mean,
+      romStdDev: romStats.stdDev,
+      meanDuration: tempoStats.mean,
+      tempoStdDev: tempoStats.stdDev,
+      concentricMean: conMean,
+      eccentricMean: eccMean,
+      earlyLateROMDelta: delta,
+      stabilityStatus
     };
   }
 }
@@ -134,41 +192,60 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
 // 2. LEG PRESS ANALYZER
 // -----------------------------------------------------------------------------
 export class LegPressAnalyzer implements ExerciseAnalyzer {
-  public segmentReps(frames: PoseFrame[], view: CameraViewType): Repetition[] {
+  public segmentReps(frames: PoseFrame[]): Repetition[] {
     const squat = new SquatAnalyzer();
     return squat.segmentReps(frames);
   }
 
-  public analyzeSet(reps: Repetition[], frames: PoseFrame[], view: CameraViewType): SetAnalysis {
+  public analyzeSet(reps: Repetition[]): SetAnalysis {
     if (reps.length === 0) return emptySetAnalysis();
-    const meanROM = reps.reduce((a, b) => a + b.primaryROM, 0) / reps.length;
-    const meanDur = reps.reduce((a, b) => a + b.duration, 0) / reps.length;
+
+    const romStats = computeStats(reps.map(r => r.primaryROM));
+    const tempoStats = computeStats(reps.map(r => r.duration));
+    const eccMean = Math.round((reps.reduce((a, b) => a + b.eccentricDuration, 0) / reps.length) * 10) / 10;
+    const conMean = Math.round((reps.reduce((a, b) => a + b.concentricDuration, 0) / reps.length) * 10) / 10;
+
+    const observations: FormObservation[] = [
+      {
+        id: 'legpress.knee.depth',
+        title: 'Controlled Sled Range',
+        detail: `Controlled knee flexion reached ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) with smooth turnaround.`,
+        evidence: `Controlled inflection point observed across ${reps.length} reps.`,
+        severity: 'positive',
+        affectedReps: reps.map(r => r.index)
+      }
+    ];
+
+    const stabilityStatus = determineStabilityStatus(romStats.stdDev, romStats.mean);
+    const cvROM = romStats.mean > 0 ? (romStats.stdDev / romStats.mean) : 0;
+    const cvTempo = tempoStats.mean > 0 ? (tempoStats.stdDev / tempoStats.mean) : 0;
+
+    const consistencyScore = Math.max(50, Math.min(100, Math.round(100 - cvROM * 200)));
+    const tempoScore = Math.max(50, Math.min(100, Math.round(100 - cvTempo * 150)));
+    const romScore = romStats.mean <= 90 ? 96 : Math.max(50, Math.round(96 - (romStats.mean - 90) * 1.5));
+    const overallScore = Math.round(romScore * 0.4 + consistencyScore * 0.3 + tempoScore * 0.3);
 
     return {
-      overallScore: 94,
-      romScore: 96,
-      consistencyScore: 94,
-      tempoScore: 92,
-      primaryObservation: `Clean leg press execution with ${reps.length} reps at ~${Math.round(meanROM)}° knee flexion.`,
-      observations: [
-        {
-          id: 'legpress.knee.depth',
-          title: 'Controlled Sled Range',
-          detail: `Controlled knee flexion reached ~${Math.round(meanROM)}° without aggressive knee joint locking.`,
-          evidence: `Smooth turnaround at inflection point.`,
-          severity: 'positive',
-          affectedReps: reps.map(r => r.index)
-        }
-      ],
+      overallScore,
+      romScore,
+      consistencyScore,
+      tempoScore,
+      primaryObservation: `Clean leg press execution with ${reps.length} reps at ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) knee flexion.`,
+      observations,
       repCount: reps.length,
-      meanROM,
-      meanDuration: meanDur
+      meanROM: romStats.mean,
+      romStdDev: romStats.stdDev,
+      meanDuration: tempoStats.mean,
+      tempoStdDev: tempoStats.stdDev,
+      concentricMean: conMean,
+      eccentricMean: eccMean,
+      stabilityStatus
     };
   }
 }
 
 // -----------------------------------------------------------------------------
-// 3. BICEP CURLS ANALYZER
+// 3. BICEP CURLS ANALYZER (WITH RELATIVE SHOULDER DRIFT Δθ)
 // -----------------------------------------------------------------------------
 export class BicepCurlAnalyzer implements ExerciseAnalyzer {
   public segmentReps(frames: PoseFrame[]): Repetition[] {
@@ -177,7 +254,8 @@ export class BicepCurlAnalyzer implements ExerciseAnalyzer {
     let state: 'lockout' | 'curling' | 'peak' | 'lowering' = 'lockout';
     let startTime = 0;
     let minAngle = 180;
-    let maxDrift = 0;
+    let setupShoulderAngle = 0;
+    let maxRelativeDrift = 0;
     let inflectionTime = 0;
     let repIdx = 1;
 
@@ -190,36 +268,40 @@ export class BicepCurlAnalyzer implements ExerciseAnalyzer {
       if (!s || !e || !w) continue;
 
       const elbowAngle = AngleCalculator.angle2D(s, e, w);
-      const shoulderDrift = h ? AngleCalculator.angle2D(h, s, e) : 0;
+      const currentShoulderAngle = h ? AngleCalculator.angle2D(h, s, e) : 0;
       const t = f.timestamp;
 
       if (state === 'lockout' && elbowAngle < 140) {
         state = 'curling';
         startTime = t;
         minAngle = elbowAngle;
-        maxDrift = shoulderDrift;
+        setupShoulderAngle = currentShoulderAngle;
+        maxRelativeDrift = 0;
         inflectionTime = t;
       } else if (state === 'curling') {
+        const relativeDrift = Math.abs(currentShoulderAngle - setupShoulderAngle);
         if (elbowAngle < minAngle) {
           minAngle = elbowAngle;
           inflectionTime = t;
         }
-        if (shoulderDrift > maxDrift) {
-          maxDrift = shoulderDrift;
+        if (relativeDrift > maxRelativeDrift) {
+          maxRelativeDrift = relativeDrift;
         }
         if (elbowAngle > minAngle + 5) {
           state = 'peak';
         }
       } else if (state === 'peak') {
-        if (shoulderDrift > maxDrift) {
-          maxDrift = shoulderDrift;
+        const relativeDrift = Math.abs(currentShoulderAngle - setupShoulderAngle);
+        if (relativeDrift > maxRelativeDrift) {
+          maxRelativeDrift = relativeDrift;
         }
         if (elbowAngle > minAngle + 12) {
           state = 'lowering';
         }
       } else if (state === 'lowering') {
-        if (shoulderDrift > maxDrift) {
-          maxDrift = shoulderDrift;
+        const relativeDrift = Math.abs(currentShoulderAngle - setupShoulderAngle);
+        if (relativeDrift > maxRelativeDrift) {
+          maxRelativeDrift = relativeDrift;
         }
         if (elbowAngle >= 140) {
           const duration = t - startTime;
@@ -232,13 +314,13 @@ export class BicepCurlAnalyzer implements ExerciseAnalyzer {
               duration,
               concentricDuration: Math.max(0.2, inflectionTime - startTime),
               eccentricDuration: Math.max(0.2, t - inflectionTime),
-              primaryROM: minAngle,
-              secondaryROM: maxDrift,
+              primaryROM: Math.round(minAngle * 10) / 10,
+              secondaryROM: Math.round(maxRelativeDrift * 10) / 10,
               confidence: f.confidence
             });
           }
           state = 'lockout';
-          maxDrift = 0;
+          maxRelativeDrift = 0;
         }
       }
     }
@@ -247,48 +329,69 @@ export class BicepCurlAnalyzer implements ExerciseAnalyzer {
 
   public analyzeSet(reps: Repetition[]): SetAnalysis {
     if (reps.length === 0) return emptySetAnalysis();
-    const meanROM = reps.reduce((a, b) => a + b.primaryROM, 0) / reps.length;
-    const meanDrift = reps.reduce((a, b) => a + (b.secondaryROM || 0), 0) / reps.length;
-    const meanDur = reps.reduce((a, b) => a + b.duration, 0) / reps.length;
+
+    const romStats = computeStats(reps.map(r => r.primaryROM));
+    const tempoStats = computeStats(reps.map(r => r.duration));
+    const driftStats = computeStats(reps.map(r => r.secondaryROM || 0));
+    const peakDrift = Math.max(...reps.map(r => r.secondaryROM || 0));
+
+    const eccMean = Math.round((reps.reduce((a, b) => a + b.eccentricDuration, 0) / reps.length) * 10) / 10;
+    const conMean = Math.round((reps.reduce((a, b) => a + b.concentricDuration, 0) / reps.length) * 10) / 10;
+
     const observations: FormObservation[] = [];
 
-    if (meanDrift >= 18) {
+    if (peakDrift >= 15 || driftStats.mean >= 12) {
       observations.push({
         id: 'curl.shoulder.drift',
         title: 'Shoulder Momentum Swing Detected',
-        detail: `Upper arm swung forward by ~${Math.round(meanDrift)}° during curls. Keep elbows pinned to isolate biceps.`,
-        evidence: `Excessive shoulder angle detected on reps: ${reps.filter(r => (r.secondaryROM || 0) >= 18).map(r => r.index).join(', ')}.`,
+        detail: `Upper arm swung forward by Δ${Math.round(peakDrift)}° relative to setup posture. Pin elbows to isolate biceps.`,
+        evidence: `Relative shoulder drift ≥15° on reps: ${reps.filter(r => (r.secondaryROM || 0) >= 15).map(r => r.index).join(', ')}.`,
         severity: 'warning',
-        affectedReps: reps.filter(r => (r.secondaryROM || 0) >= 18).map(r => r.index)
+        affectedReps: reps.filter(r => (r.secondaryROM || 0) >= 15).map(r => r.index)
       });
     } else {
       observations.push({
         id: 'curl.form.strict',
         title: 'Strict Bicep Isolation',
-        detail: `Elbows stayed tightly pinned with under 12° shoulder drift across all ${reps.length} reps.`,
-        evidence: `Strict curl execution with pinned upper arms.`,
+        detail: `Elbows stayed tightly pinned with under Δ${Math.round(peakDrift || 6)}° relative shoulder drift across all ${reps.length} reps.`,
+        evidence: `Strict curl execution verified relative to setup anchor.`,
         severity: 'positive',
         affectedReps: reps.map(r => r.index)
       });
     }
 
-    const quality = meanDrift >= 18 ? 76 : 94;
+    const stabilityStatus = determineStabilityStatus(romStats.stdDev, romStats.mean, peakDrift);
+    const cvROM = romStats.mean > 0 ? (romStats.stdDev / romStats.mean) : 0;
+    const cvTempo = tempoStats.mean > 0 ? (tempoStats.stdDev / tempoStats.mean) : 0;
+
+    const consistencyScore = Math.max(50, Math.min(100, Math.round(100 - cvROM * 200)));
+    const tempoScore = Math.max(50, Math.min(100, Math.round(100 - cvTempo * 150)));
+    const romScore = romStats.mean <= 60 ? 96 : Math.max(50, Math.round(96 - (romStats.mean - 60) * 1.5));
+    const driftPenalty = peakDrift >= 15 ? 18 : Math.round(peakDrift * 0.6);
+    const overallScore = Math.max(40, Math.round(romScore * 0.4 + consistencyScore * 0.3 + tempoScore * 0.3 - driftPenalty));
+
     return {
-      overallScore: quality,
-      romScore: 95,
-      consistencyScore: 92,
-      tempoScore: 90,
-      primaryObservation: observations[0]?.detail || 'Clean biceps curl set.',
+      overallScore,
+      romScore,
+      consistencyScore,
+      tempoScore,
+      primaryObservation: observations[0]?.detail || `Biceps curls with ${reps.length} reps at ~${Math.round(romStats.mean)}° elbow flexion (Δ${Math.round(peakDrift)}° drift).`,
       observations,
       repCount: reps.length,
-      meanROM,
-      meanDuration: meanDur
+      meanROM: romStats.mean,
+      romStdDev: romStats.stdDev,
+      meanDuration: tempoStats.mean,
+      tempoStdDev: tempoStats.stdDev,
+      concentricMean: conMean,
+      eccentricMean: eccMean,
+      peakRelativeDrift: peakDrift,
+      stabilityStatus
     };
   }
 }
 
 // -----------------------------------------------------------------------------
-// 4. TRICEPS PUSHDOWN ANALYZER
+// 4. TRICEPS PUSHDOWN ANALYZER (WITH RELATIVE UPPER ARM DRIFT Δθ)
 // -----------------------------------------------------------------------------
 export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
   public segmentReps(frames: PoseFrame[]): Repetition[] {
@@ -297,7 +400,8 @@ export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
     let state: 'flexed' | 'extending' | 'lockout' | 'returning' = 'flexed';
     let startTime = 0;
     let maxAngle = 70;
-    let maxDrift = 0;
+    let setupShoulderAngle = 0;
+    let maxRelativeDrift = 0;
     let inflectionTime = 0;
     let repIdx = 1;
 
@@ -310,36 +414,40 @@ export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
       if (!s || !e || !w) continue;
 
       const elbowAngle = AngleCalculator.angle2D(s, e, w);
-      const drift = h ? AngleCalculator.angle2D(h, s, e) : 0;
+      const currentShoulderAngle = h ? AngleCalculator.angle2D(h, s, e) : 0;
       const t = f.timestamp;
 
       if (state === 'flexed' && elbowAngle > 95) {
         state = 'extending';
         startTime = t;
         maxAngle = elbowAngle;
-        maxDrift = drift;
+        setupShoulderAngle = currentShoulderAngle;
+        maxRelativeDrift = 0;
         inflectionTime = t;
       } else if (state === 'extending') {
+        const relativeDrift = Math.abs(currentShoulderAngle - setupShoulderAngle);
         if (elbowAngle > maxAngle) {
           maxAngle = elbowAngle;
           inflectionTime = t;
         }
-        if (drift > maxDrift) {
-          maxDrift = drift;
+        if (relativeDrift > maxRelativeDrift) {
+          maxRelativeDrift = relativeDrift;
         }
         if (elbowAngle < maxAngle - 4) {
           state = 'lockout';
         }
       } else if (state === 'lockout') {
-        if (drift > maxDrift) {
-          maxDrift = drift;
+        const relativeDrift = Math.abs(currentShoulderAngle - setupShoulderAngle);
+        if (relativeDrift > maxRelativeDrift) {
+          maxRelativeDrift = relativeDrift;
         }
         if (elbowAngle < maxAngle - 10) {
           state = 'returning';
         }
       } else if (state === 'returning') {
-        if (drift > maxDrift) {
-          maxDrift = drift;
+        const relativeDrift = Math.abs(currentShoulderAngle - setupShoulderAngle);
+        if (relativeDrift > maxRelativeDrift) {
+          maxRelativeDrift = relativeDrift;
         }
         if (elbowAngle <= 95) {
           const duration = t - startTime;
@@ -352,13 +460,13 @@ export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
               duration,
               concentricDuration: Math.max(0.2, inflectionTime - startTime),
               eccentricDuration: Math.max(0.2, t - inflectionTime),
-              primaryROM: maxAngle,
-              secondaryROM: maxDrift,
+              primaryROM: Math.round(maxAngle * 10) / 10,
+              secondaryROM: Math.round(maxRelativeDrift * 10) / 10,
               confidence: f.confidence
             });
           }
           state = 'flexed';
-          maxDrift = 0;
+          maxRelativeDrift = 0;
         }
       }
     }
@@ -367,47 +475,68 @@ export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
 
   public analyzeSet(reps: Repetition[]): SetAnalysis {
     if (reps.length === 0) return emptySetAnalysis();
-    const meanROM = reps.reduce((a, b) => a + b.primaryROM, 0) / reps.length;
-    const meanDrift = reps.reduce((a, b) => a + (b.secondaryROM || 0), 0) / reps.length;
-    const meanDur = reps.reduce((a, b) => a + b.duration, 0) / reps.length;
+
+    const romStats = computeStats(reps.map(r => r.primaryROM));
+    const tempoStats = computeStats(reps.map(r => r.duration));
+    const peakDrift = Math.max(...reps.map(r => r.secondaryROM || 0));
+
+    const eccMean = Math.round((reps.reduce((a, b) => a + b.eccentricDuration, 0) / reps.length) * 10) / 10;
+    const conMean = Math.round((reps.reduce((a, b) => a + b.concentricDuration, 0) / reps.length) * 10) / 10;
+
     const observations: FormObservation[] = [];
 
-    if (meanDrift >= 20) {
+    if (peakDrift >= 16) {
       observations.push({
         id: 'triceps.elbow.drift',
         title: 'Pinned Elbow Drift',
-        detail: `Elbows drifted forward by ~${Math.round(meanDrift)}°. Keep elbows pinned to your sides.`,
-        evidence: `Elbow flaring/drift observed on reps: ${reps.filter(r => (r.secondaryROM || 0) >= 20).map(r => r.index).join(', ')}.`,
+        detail: `Elbows drifted forward by Δ${Math.round(peakDrift)}° relative to torso. Keep elbows pinned to your sides.`,
+        evidence: `Relative upper arm drift ≥16° on reps: ${reps.filter(r => (r.secondaryROM || 0) >= 16).map(r => r.index).join(', ')}.`,
         severity: 'warning',
-        affectedReps: reps.filter(r => (r.secondaryROM || 0) >= 20).map(r => r.index)
+        affectedReps: reps.filter(r => (r.secondaryROM || 0) >= 16).map(r => r.index)
       });
     } else {
       observations.push({
         id: 'triceps.form.strict',
         title: 'Strict Triceps Lockout',
-        detail: `Elbows stayed tightly pinned with complete ~${Math.round(meanROM)}° extension on every rep.`,
+        detail: `Elbows stayed tightly pinned with complete ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) extension on every rep.`,
         evidence: `Clean extension without shoulder cheating.`,
         severity: 'positive',
         affectedReps: reps.map(r => r.index)
       });
     }
 
+    const stabilityStatus = determineStabilityStatus(romStats.stdDev, romStats.mean, peakDrift);
+    const cvROM = romStats.mean > 0 ? (romStats.stdDev / romStats.mean) : 0;
+    const cvTempo = tempoStats.mean > 0 ? (tempoStats.stdDev / tempoStats.mean) : 0;
+
+    const consistencyScore = Math.max(50, Math.min(100, Math.round(100 - cvROM * 200)));
+    const tempoScore = Math.max(50, Math.min(100, Math.round(100 - cvTempo * 150)));
+    const romScore = romStats.mean >= 160 ? 98 : Math.max(50, Math.round(98 - (160 - romStats.mean) * 1.5));
+    const driftPenalty = peakDrift >= 16 ? 16 : Math.round(peakDrift * 0.5);
+    const overallScore = Math.max(40, Math.round(romScore * 0.4 + consistencyScore * 0.3 + tempoScore * 0.3 - driftPenalty));
+
     return {
-      overallScore: meanDrift >= 20 ? 80 : 96,
-      romScore: 96,
-      consistencyScore: 94,
-      tempoScore: 92,
-      primaryObservation: observations[0]?.detail || 'Clean triceps pushdown set.',
+      overallScore,
+      romScore,
+      consistencyScore,
+      tempoScore,
+      primaryObservation: observations[0]?.detail || `Clean triceps pushdown set with ${reps.length} reps at ~${Math.round(romStats.mean)}° extension.`,
       observations,
       repCount: reps.length,
-      meanROM,
-      meanDuration: meanDur
+      meanROM: romStats.mean,
+      romStdDev: romStats.stdDev,
+      meanDuration: tempoStats.mean,
+      tempoStdDev: tempoStats.stdDev,
+      concentricMean: conMean,
+      eccentricMean: eccMean,
+      peakRelativeDrift: peakDrift,
+      stabilityStatus
     };
   }
 }
 
 // -----------------------------------------------------------------------------
-// 5. SHOULDER PRESS ANALYZER (WITH GENUINE BILATERAL ASYMMETRY CALCULATION)
+// 5. SHOULDER PRESS ANALYZER (WITH BILATERAL ASYMMETRY CALCULATION)
 // -----------------------------------------------------------------------------
 export class ShoulderPressAnalyzer implements ExerciseAnalyzer {
   public segmentReps(frames: PoseFrame[]): Repetition[] {
@@ -479,8 +608,8 @@ export class ShoulderPressAnalyzer implements ExerciseAnalyzer {
               duration,
               concentricDuration: Math.max(0.2, inflectionTime - startTime),
               eccentricDuration: Math.max(0.2, t - inflectionTime),
-              primaryROM: maxAngle,
-              secondaryROM: maxAsymmetry,
+              primaryROM: Math.round(maxAngle * 10) / 10,
+              secondaryROM: Math.round(maxAsymmetry * 10) / 10,
               confidence: f.confidence
             });
           }
@@ -494,16 +623,21 @@ export class ShoulderPressAnalyzer implements ExerciseAnalyzer {
 
   public analyzeSet(reps: Repetition[]): SetAnalysis {
     if (reps.length === 0) return emptySetAnalysis();
-    const meanROM = reps.reduce((a, b) => a + b.primaryROM, 0) / reps.length;
-    const meanAsymmetry = reps.reduce((a, b) => a + (b.secondaryROM || 0), 0) / reps.length;
-    const meanDur = reps.reduce((a, b) => a + b.duration, 0) / reps.length;
+
+    const romStats = computeStats(reps.map(r => r.primaryROM));
+    const asymStats = computeStats(reps.map(r => r.secondaryROM || 0));
+    const tempoStats = computeStats(reps.map(r => r.duration));
+
+    const eccMean = Math.round((reps.reduce((a, b) => a + b.eccentricDuration, 0) / reps.length) * 10) / 10;
+    const conMean = Math.round((reps.reduce((a, b) => a + b.concentricDuration, 0) / reps.length) * 10) / 10;
+
     const observations: FormObservation[] = [];
 
-    if (meanAsymmetry >= 12) {
+    if (asymStats.mean >= 12) {
       observations.push({
         id: 'press.bilateral.asymmetry',
         title: 'Bilateral Arm Asymmetry Detected',
-        detail: `Observed an average ${Math.round(meanAsymmetry)}° asymmetry between left and right arm extension.`,
+        detail: `Observed an average ${Math.round(asymStats.mean)}° asymmetry between left and right arm extension.`,
         evidence: `Asymmetric extension on reps: ${reps.filter(r => (r.secondaryROM || 0) >= 12).map(r => r.index).join(', ')}.`,
         severity: 'warning',
         affectedReps: reps.filter(r => (r.secondaryROM || 0) >= 12).map(r => r.index)
@@ -512,42 +646,42 @@ export class ShoulderPressAnalyzer implements ExerciseAnalyzer {
       observations.push({
         id: 'press.lockout.symmetry',
         title: 'Symmetrical Overhead Lockout',
-        detail: `Left and right arms moved symmetrically within ~${Math.round(meanAsymmetry)}° variance across all ${reps.length} reps.`,
+        detail: `Left and right arms moved symmetrically within ~${Math.round(asymStats.mean)}° variance across all ${reps.length} reps.`,
         evidence: `Bilateral alignment verified from measured landmarks.`,
         severity: 'positive',
         affectedReps: reps.map(r => r.index)
       });
     }
 
-    const symmetryScore = Math.max(50, Math.round(100 - meanAsymmetry * 2.0));
+    const symmetryScore = Math.max(50, Math.round(100 - asymStats.mean * 2.0));
+    const stabilityStatus = determineStabilityStatus(romStats.stdDev, romStats.mean, asymStats.mean);
+    const cvROM = romStats.mean > 0 ? (romStats.stdDev / romStats.mean) : 0;
+    const cvTempo = tempoStats.mean > 0 ? (tempoStats.stdDev / tempoStats.mean) : 0;
+
+    const consistencyScore = Math.max(50, Math.min(100, Math.round(100 - cvROM * 200)));
+    const tempoScore = Math.max(50, Math.min(100, Math.round(100 - cvTempo * 150)));
+    const romScore = romStats.mean >= 165 ? 98 : Math.max(50, Math.round(98 - (165 - romStats.mean) * 1.5));
+    const overallScore = Math.round(romScore * 0.4 + consistencyScore * 0.3 + tempoScore * 0.3);
 
     return {
-      overallScore: meanAsymmetry >= 12 ? 78 : 95,
-      romScore: 96,
-      consistencyScore: 94,
-      tempoScore: 93,
+      overallScore,
+      romScore,
+      consistencyScore,
+      tempoScore,
       symmetryScore,
-      primaryObservation: observations[0]?.detail || `Overhead press with ${reps.length} reps at ~${Math.round(meanROM)}° extension.`,
+      primaryObservation: observations[0]?.detail || `Overhead press with ${reps.length} reps at ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) extension.`,
       observations,
       repCount: reps.length,
-      meanROM,
-      meanDuration: meanDur
+      meanROM: romStats.mean,
+      romStdDev: romStats.stdDev,
+      meanDuration: tempoStats.mean,
+      tempoStdDev: tempoStats.stdDev,
+      concentricMean: conMean,
+      eccentricMean: eccMean,
+      meanAsymmetry: asymStats.mean,
+      stabilityStatus
     };
   }
-}
-
-function emptySetAnalysis(): SetAnalysis {
-  return {
-    overallScore: 0,
-    romScore: 0,
-    consistencyScore: 0,
-    tempoScore: 0,
-    primaryObservation: 'No completed reps detected in this set.',
-    observations: [],
-    repCount: 0,
-    meanROM: 0,
-    meanDuration: 0
-  };
 }
 
 export function getAnalyzerForExercise(type: ExerciseType): ExerciseAnalyzer {
@@ -565,3 +699,4 @@ export function getAnalyzerForExercise(type: ExerciseType): ExerciseAnalyzer {
       return new ShoulderPressAnalyzer();
   }
 }
+

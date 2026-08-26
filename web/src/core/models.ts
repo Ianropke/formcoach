@@ -21,6 +21,8 @@ export type ExerciseType =
 
 export type CameraViewType = 'side' | 'front45' | 'front';
 
+export type ExerciseTier = 'TIER_A_VERIFIED' | 'TIER_B_EXPERIMENTAL';
+
 export interface ExerciseDefinition {
   id: ExerciseType;
   name: string;
@@ -30,6 +32,7 @@ export interface ExerciseDefinition {
   supportedViews: CameraViewType[];
   keyMetrics: string[];
   status: 'ACTIVE' | 'IN_DEVELOPMENT';
+  tier: ExerciseTier;
 }
 
 export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
@@ -40,8 +43,9 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'arms',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Elbow ROM', 'Shoulder Drift', 'Tempo', 'Rep Count'],
-    status: 'ACTIVE'
+    keyMetrics: ['Elbow ROM (±σ)', 'Relative Shoulder Drift (Δθ)', 'Tempo (Ecc/Con)', 'Rep Count'],
+    status: 'ACTIVE',
+    tier: 'TIER_A_VERIFIED'
   },
   tricepsPushdown: {
     id: 'tricepsPushdown',
@@ -50,8 +54,9 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'arms',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Lockout ROM', 'Pinned Elbow Stability', 'Tempo', 'Rep Count'],
-    status: 'ACTIVE'
+    keyMetrics: ['Lockout ROM', 'Upper Arm Drift (Δθ)', 'Tempo (Ecc/Con)', 'Rep Count'],
+    status: 'ACTIVE',
+    tier: 'TIER_A_VERIFIED'
   },
   squat: {
     id: 'squat',
@@ -60,8 +65,9 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'legs',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Knee Depth (≤88°)', 'Torso Incline', 'Tempo', 'Rep Count'],
-    status: 'ACTIVE'
+    keyMetrics: ['Knee Flexion (≤88°)', 'ROM Dispersion (±σ)', 'Late Decay', 'Rep Count'],
+    status: 'ACTIVE',
+    tier: 'TIER_A_VERIFIED'
   },
   legPress: {
     id: 'legPress',
@@ -70,8 +76,9 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'legs',
     recommendedView: 'side',
     supportedViews: ['side', 'front45'],
-    keyMetrics: ['Knee Flexion Depth', 'Controlled Extension', 'Tempo', 'Rep Count'],
-    status: 'ACTIVE'
+    keyMetrics: ['Knee Flexion Depth', 'Cadence Stability', 'Tempo', 'Rep Count'],
+    status: 'ACTIVE',
+    tier: 'TIER_A_VERIFIED'
   },
   shoulderPress: {
     id: 'shoulderPress',
@@ -80,8 +87,9 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'push',
     recommendedView: 'front',
     supportedViews: ['front', 'front45', 'side'],
-    keyMetrics: ['Lockout ROM', 'Bilateral Asymmetry (|L-R|)', 'Tempo', 'Rep Count'],
-    status: 'ACTIVE'
+    keyMetrics: ['Overhead Lockout (≥165°)', 'Bilateral Asymmetry (|L-R|)', 'Tempo', 'Rep Count'],
+    status: 'ACTIVE',
+    tier: 'TIER_A_VERIFIED'
   }
 };
 
@@ -115,7 +123,7 @@ export interface Repetition {
   concentricDuration: number;
   eccentricDuration: number;
   primaryROM: number; // e.g. angle in degrees
-  secondaryROM?: number; // e.g. cheat angle / asymmetry
+  secondaryROM?: number; // e.g. relative drift or bilateral asymmetry in degrees
   confidence: number;
 }
 
@@ -128,6 +136,8 @@ export interface FormObservation {
   affectedReps: number[];
 }
 
+export type FormStabilityStatus = 'STRICT_STABILITY' | 'MODERATE_VARIANCE' | 'HIGH_DEVIATION';
+
 export interface SetAnalysis {
   overallScore: number;
   romScore: number;
@@ -138,8 +148,23 @@ export interface SetAnalysis {
   observations: FormObservation[];
   repCount: number;
   meanROM: number;
+  romStdDev: number; // Sample standard deviation of ROM (degrees)
   meanDuration: number;
-  earlyLateROMDelta?: number;
+  tempoStdDev: number; // Sample standard deviation of duration (seconds)
+  concentricMean: number;
+  eccentricMean: number;
+  peakRelativeDrift?: number; // Max relative angular drift from baseline setup (degrees)
+  meanAsymmetry?: number; // Mean bilateral difference |L - R| (degrees)
+  earlyLateROMDelta?: number; // Decay in degrees between early and late reps
+  stabilityStatus: FormStabilityStatus;
+}
+
+export interface CameraTelemetry {
+  cameraFPS: number;
+  inferenceFPS: number;
+  medianLatencyMs: number;
+  p95LatencyMs: number;
+  droppedFrames: number;
 }
 
 export interface RecordedSet {

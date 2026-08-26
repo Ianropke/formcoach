@@ -5,7 +5,8 @@ import { PoseSmoother } from '../core/poseSmoother';
 import { AngleCalculator } from '../core/angleCalculator';
 import { CameraQualityGate, CameraQualityResult } from '../core/qualityGate';
 import { PoseLandmarkerService } from '../vision/poseLandmarkerService';
-import { Square, ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, XCircle, SwitchCamera } from 'lucide-react';
+import { Square, ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, XCircle, SwitchCamera, Activity } from 'lucide-react';
+import { CameraTelemetry } from '../core/models';
 
 interface Props {
   exercise: ExerciseType;
@@ -24,6 +25,14 @@ export const CameraRecordingView: React.FC<Props> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [showTelemetry, setShowTelemetry] = useState(false);
+  const [telemetry, setTelemetry] = useState<CameraTelemetry>({
+    cameraFPS: 30,
+    inferenceFPS: 0,
+    medianLatencyMs: 0,
+    p95LatencyMs: 0,
+    droppedFrames: 0
+  });
   const [phase, setPhase] = useState<'setup' | 'countdown' | 'recording' | 'analyzing' | 'insufficient'>('setup');
   const [countdown, setCountdown] = useState(3);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -42,6 +51,15 @@ export const CameraRecordingView: React.FC<Props> = ({
   const animationFrameId = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const poseSmootherRef = useRef(new PoseSmoother(0.35));
+
+  // Telemetry polling interval
+  useEffect(() => {
+    const interval = setInterval(() => {
+      const landmarker = PoseLandmarkerService.getInstance();
+      setTelemetry(landmarker.getTelemetry());
+    }, 1000);
+    return () => clearInterval(interval);
+  }, []);
 
   const exerciseDef = EXERCISES[exercise];
 
@@ -268,21 +286,57 @@ export const CameraRecordingView: React.FC<Props> = ({
           </span>
         </div>
 
-        {phase === 'recording' ? (
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-950/80 border border-red-500/30 text-red-400">
-            <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
-            <span className="text-xs font-black font-mono">{formatTime(elapsedTime)}</span>
-          </div>
-        ) : (
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
-            title="Flip Camera (Front/Rear)"
-            className="p-2.5 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 hover:bg-neutral-800 transition-colors"
+            onClick={() => setShowTelemetry(prev => !prev)}
+            title="Toggle Performance Telemetry"
+            className={`p-2.5 rounded-full backdrop-blur-md border transition-colors ${
+              showTelemetry
+                ? 'bg-[#00E676] text-black border-[#00E676]'
+                : 'bg-black/60 text-white border-white/10 hover:bg-neutral-800'
+            }`}
           >
-            <SwitchCamera className="w-5 h-5 text-[#00E676]" />
+            <Activity className="w-5 h-5" />
           </button>
-        )}
+
+          {phase === 'recording' ? (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-950/80 border border-red-500/30 text-red-400">
+              <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
+              <span className="text-xs font-black font-mono">{formatTime(elapsedTime)}</span>
+            </div>
+          ) : (
+            <button
+              onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+              title="Flip Camera (Front/Rear)"
+              className="p-2.5 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 hover:bg-neutral-800 transition-colors"
+            >
+              <SwitchCamera className="w-5 h-5 text-[#00E676]" />
+            </button>
+          )}
+        </div>
       </div>
+
+      {/* Real-Time Telemetry HUD */}
+      {showTelemetry && (
+        <div className="relative z-10 mx-4 mb-2 p-3 rounded-2xl bg-black/85 backdrop-blur-md border border-white/15 text-white text-xs font-mono grid grid-cols-2 gap-2 shadow-2xl">
+          <div>
+            <span className="text-neutral-400 text-[10px] block">VISION INFERENCE</span>
+            <span className="font-bold text-[#00E676]">{telemetry.inferenceFPS} FPS</span>
+          </div>
+          <div>
+            <span className="text-neutral-400 text-[10px] block">CAMERA SENSOR</span>
+            <span className="font-bold text-white">{telemetry.cameraFPS} FPS</span>
+          </div>
+          <div>
+            <span className="text-neutral-400 text-[10px] block">LATENCY (MED / P95)</span>
+            <span className="font-bold text-white">{telemetry.medianLatencyMs}ms / {telemetry.p95LatencyMs}ms</span>
+          </div>
+          <div>
+            <span className="text-neutral-400 text-[10px] block">FRAME DROPS</span>
+            <span className={`font-bold ${telemetry.droppedFrames > 0 ? 'text-amber-400' : 'text-[#00E676]'}`}>{telemetry.droppedFrames}</span>
+          </div>
+        </div>
+      )}
 
       {/* Center Live Angle Indicator / Rep Counter */}
       <div className="relative z-10 flex flex-col items-center">

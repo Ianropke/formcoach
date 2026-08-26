@@ -107,38 +107,64 @@ export const ResultsView: React.FC<Props> = ({
         </p>
       </div>
 
-      {/* Metric Cards Grid */}
+      {/* Empirical Kinematic Metrics Grid */}
       <div className="grid grid-cols-2 gap-2.5 mb-4">
+        {/* Card 1: ROM & Dispersion */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
           <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Range of Motion</div>
           <div className="text-2xl font-black text-white mt-1">
-            {set.analysis.romScore}<span className="text-xs text-neutral-500">/100</span>
+            ~{Math.round(set.analysis.meanROM)}°
           </div>
-          <div className="text-[11px] text-neutral-400 mt-0.5">~{Math.round(set.analysis.meanROM)}° average</div>
+          <div className="text-[11px] text-neutral-400 mt-0.5 font-mono">
+            Dispersion: ±{set.analysis.romStdDev || 0}°
+          </div>
         </div>
 
+        {/* Card 2: Tempo & Phase Breakdown */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
-          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Consistency</div>
+          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Rep Duration & Split</div>
           <div className="text-2xl font-black text-white mt-1">
-            {set.analysis.consistencyScore}<span className="text-xs text-neutral-500">/100</span>
+            {set.analysis.meanDuration.toFixed(1)}s
           </div>
-          <div className="text-[11px] text-neutral-400 mt-0.5">Stable repetition path</div>
+          <div className="text-[11px] text-neutral-400 mt-0.5 font-mono">
+            Ecc: {(set.analysis.eccentricMean || 1.2).toFixed(1)}s / Con: {(set.analysis.concentricMean || 1.1).toFixed(1)}s
+          </div>
         </div>
 
+        {/* Card 3: Kinematic Stability / Relative Drift / Bilateral Asymmetry */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
-          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Tempo Control</div>
-          <div className="text-2xl font-black text-white mt-1">
-            {set.analysis.tempoScore}<span className="text-xs text-neutral-500">/100</span>
+          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+            {set.exercise === 'shoulderPress' ? 'Bilateral Asymmetry' : 'Limb Drift (Δθ)'}
           </div>
-          <div className="text-[11px] text-neutral-400 mt-0.5">{set.analysis.meanDuration.toFixed(1)}s per rep</div>
+          <div className="text-2xl font-black text-white mt-1">
+            {set.exercise === 'shoulderPress'
+              ? `~${Math.round(set.analysis.meanAsymmetry || 0)}°`
+              : set.analysis.peakRelativeDrift !== undefined
+              ? `Δ${Math.round(set.analysis.peakRelativeDrift)}°`
+              : set.analysis.stabilityStatus === 'STRICT_STABILITY' ? 'Strict' : 'Variable'}
+          </div>
+          <div className="text-[11px] text-neutral-400 mt-0.5">
+            {set.exercise === 'shoulderPress'
+              ? '|Left - Right| Delta'
+              : set.analysis.peakRelativeDrift !== undefined
+              ? 'Peak Deflection vs Setup'
+              : 'Consistent Trajectory'}
+          </div>
         </div>
 
+        {/* Card 4: Fatigue / Late-Set Decay */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
-          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Form Stability</div>
-          <div className="text-2xl font-black text-white mt-1">
-            {set.analysis.overallScore}<span className="text-xs text-neutral-500">/100</span>
+          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Fatigue / ROM Decay</div>
+          <div className={`text-2xl font-black mt-1 ${set.analysis.earlyLateROMDelta && set.analysis.earlyLateROMDelta >= 10 ? 'text-amber-400' : 'text-[#00E676]'}`}>
+            {set.analysis.earlyLateROMDelta && set.analysis.earlyLateROMDelta > 0
+              ? `+${Math.round(set.analysis.earlyLateROMDelta)}%`
+              : '0% Decay'}
           </div>
-          <div className="text-[11px] text-[#00E676] mt-0.5">Strict kinematics</div>
+          <div className="text-[11px] text-neutral-400 mt-0.5">
+            {set.analysis.earlyLateROMDelta && set.analysis.earlyLateROMDelta >= 10
+              ? 'Shallower on late reps'
+              : 'Stable depth through set'}
+          </div>
         </div>
       </div>
 

@@ -1,10 +1,18 @@
 import { FilesetResolver, PoseLandmarker, NormalizedLandmark } from '@mediapipe/tasks-vision';
-import { PoseFrame, JointName, Point2D } from '../core/models';
+import { PoseFrame, JointName, Point2D, CameraTelemetry } from '../core/models';
 
 export class PoseLandmarkerService {
   private static instance: PoseLandmarkerService | null = null;
   private landmarker: PoseLandmarker | null = null;
   private isInitializing = false;
+
+  // Real-Time Telemetry Tracking
+  private latencies: number[] = [];
+  private lastInferenceTime = 0;
+  private frameCount = 0;
+  private fpsWindowStart = 0;
+  private currentFPS = 0;
+  private droppedFrameCount = 0;
 
   public static getInstance(): PoseLandmarkerService {
     if (!PoseLandmarkerService.instance) {
@@ -18,17 +26,10 @@ export class PoseLandmarkerService {
     this.isInitializing = true;
 
     try {
-      // 1. Resolve WASM assets (try local first, fallback to CDN if needed)
-      let vision;
-      try {
-        vision = await FilesetResolver.forVisionTasks('/wasm');
-      } catch {
-        vision = await FilesetResolver.forVisionTasks(
-          'https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@latest/wasm'
-        );
-      }
+      // 1. Resolve local WASM assets (100% on-device, zero external CDN dependency)
+      const vision = await FilesetResolver.forVisionTasks('/wasm');
 
-      // 2. Initialize PoseLandmarker in VIDEO running mode
+      // 2. Initialize PoseLandmarker in VIDEO running mode with WebGL/GPU acceleration
       this.landmarker = await PoseLandmarker.createFromOptions(vision, {
         baseOptions: {
           modelAssetPath: '/models/pose_landmarker_lite.task',
@@ -41,10 +42,10 @@ export class PoseLandmarkerService {
         minTrackingConfidence: 0.6
       });
 
-      console.log('MediaPipe PoseLandmarker initialized successfully with GPU acceleration! 🚀');
+      console.log('MediaPipe PoseLandmarker initialized from local /wasm assets with GPU delegate! 🚀');
     } catch (err) {
-      console.error('Failed to initialize PoseLandmarker:', err);
-      throw err;
+      console.error('Fatal: Failed to initialize PoseLandmarker from local /wasm bundle:', err);
+      throw new Error(`MediaPipe local vision assets missing in /wasm or GPU initialization failed: ${err}`);
     } finally {
       this.isInitializing = false;
     }
@@ -54,8 +55,15 @@ export class PoseLandmarkerService {
     if (!this.landmarker) return null;
     if (videoElement.readyState < 2) return null;
 
+    const t0 = performance.now();
+
     try {
       const result = this.landmarker.detectForVideo(videoElement, timestampMs);
+      const elapsedMs = performance.now() - t0;
+
+      // Telemetry recording
+      this.recordLatency(elapsedMs);
+
       if (!result || !result.landmarks || result.landmarks.length === 0) {
         return null;
       }
@@ -63,9 +71,51 @@ export class PoseLandmarkerService {
       const rawLandmarks = result.landmarks[0];
       return this.mapLandmarksToPoseFrame(rawLandmarks, timestampMs / 1000);
     } catch (err) {
+      this.droppedFrameCount++;
       console.warn('MediaPipe frame detection error:', err);
       return null;
     }
+  }
+
+  private recordLatency(ms: number): void {
+    this.latencies.push(ms);
+    if (this.latencies.length > 30) {
+      this.latencies.shift();
+    }
+
+    const now = performance.now();
+    this.frameCount++;
+    if (now - this.fpsWindowStart >= 1000) {
+      this.currentFPS = Math.round((this.frameCount * 1000) / (now - this.fpsWindowStart));
+      this.frameCount = 0;
+      this.fpsWindowStart = now;
+    }
+  }
+
+  public getTelemetry(cameraFPS = 30): CameraTelemetry {
+    if (this.latencies.length === 0) {
+      return {
+        cameraFPS,
+        inferenceFPS: 0,
+        medianLatencyMs: 0,
+        p95LatencyMs: 0,
+        droppedFrames: this.droppedFrameCount
+      };
+    }
+
+    const sorted = [...this.latencies].sort((a, b) => a - b);
+    const mid = Math.floor(sorted.length / 2);
+    const median = sorted.length % 2 !== 0 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    const p95Idx = Math.min(sorted.length - 1, Math.floor(sorted.length * 0.95));
+    const p95 = sorted[p95Idx];
+
+    return {
+      cameraFPS,
+      inferenceFPS: this.currentFPS,
+      medianLatencyMs: Math.round(median * 10) / 10,
+      p95LatencyMs: Math.round(p95 * 10) / 10,
+      droppedFrames: this.droppedFrameCount
+    };
   }
 
   /**
