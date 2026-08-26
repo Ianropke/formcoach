@@ -40,7 +40,48 @@ This document governs the engineering standards, architectural invariants, and c
 ## 2. Engineering Quality & Verification Gates
 
 Every code change must pass the following quality gates before submission:
-1. **Unit Testing:** `npm test` runs the 13/13 deterministic biomechanics test suite (`src/tests/testSuite.ts`) covering vector geometry, state machines, fatigue detection, and baselines.
+1. **Unit & Mathematical Regression Testing:** `npm test` runs the deterministic biomechanics test suite (`src/tests/testSuite.ts` & `src/tests/goldenDataset.ts`) covering vector geometry, state machines, fatigue detection, and baselines on synthetic frames.
 2. **Build Validation:** `npm run build` (`tsc -b && vite build`) passes with 0 type errors.
 3. **Zero Console Errors:** Automated headless browser inspection must verify 0 console errors, 0 page errors, and valid PWA assets (192x192, 512x512 icons, manifest, service worker).
 4. **Discards are Final:** Discarding a recorded set MUST immediately drop memory buffers and never write to persistent baseline storage.
+
+---
+
+## 3. Epistemic Hierarchy & "Builder vs. Skeptic" Governance
+
+All contributors and AI agents must strictly adhere to the 3-Tier Evidence Hierarchy:
+
+```
+[Tier 1: Kodekorrekthed]
+  ↳ Typecheck (tsc), Lint, Clean Builds, Zero Console Errors
+      ↓
+[Tier 2: Algoritmisk Validering]
+  ↳ Syntetiske regressionstests (testSuite & synthetic benchmarks)
+  ↳ Beviser at matematikken & state-machinen virker på perfekte data
+      ↓
+[Tier 3: Empirisk Feltvalidering]
+  ↳ Reel person foran iPhone-kamera i fitnesscenter (støj, lys, vinkler, occlusion)
+  ↳ Målt mod menneskelig ground-truth (MAE på reps, Sensitivity/Specificity på fejl)
+```
+
+### 3.1 The Builder vs. Skeptic Rule
+- **Agent Role (Builder):** The agent builds, refactors, secures, and runs Tier 1 & Tier 2 checks.
+- **Language Prohibition:** Agents are **STRICTLY PROHIBITED** from using phrases such as *"validated"*, *"production-ready"*, *"works reliably in real life"*, or *"ingen kode-genveje tilbage"* solely on the basis of Tier 1 & Tier 2 tests.
+- **Permitted Phrasing:** Agents MUST state precisely what was tested: e.g. *"17/17 deterministic regression tests pass on synthetic vector inputs. Real-world vision accuracy remains unvalidated pending Tier 3 field testing."*
+
+### 3.2 Canonical PureGym Field Test Protocol (Tier 3 Baseline)
+When field-testing in reality, execute these 6 standardized recording sets:
+
+| Test Set | Physical Execution | Expected FormCoach Behavior |
+|---|---|---|
+| **1. Strict Curls** | 10 clean, controlled bicep curls | 9–10 reps, peak drift $< 10^\circ$, positive isolation observation |
+| **2. Cheat Curls** | 10 curls with deliberate torso/shoulder swing | 9–10 reps, peak drift $\ge 15^\circ$, `Shoulder Momentum Swing Detected` warning |
+| **3. Incomplete ROM Curls** | 10 half-reps (stopping at 90°) | Rep count tracked + shallow flexion score / observation |
+| **4. Parallel Squats** | 10 deep squats to parallel ($\le 88^\circ$) | 9–10 reps, parallel depth observation |
+| **5. Shallow Squats** | 10 deliberately high squats ($> 105^\circ$) | Shallow depth warning triggered (distinct from Test 4) |
+| **6. Adverse Camera Setup** | Standing too close ($<1\text{m}$) or partially obscured | `CameraQualityGate` strictly blocks recording countdown |
+
+Field metrics must report:
+- **Rep Count Mean Absolute Error:** $\text{MAE} = \frac{1}{n}\sum |\text{FormCoach reps} - \text{actual reps}|$
+- **Flaw Detection Sensitivity & Specificity** relative to self-annotated ground truth.
+
