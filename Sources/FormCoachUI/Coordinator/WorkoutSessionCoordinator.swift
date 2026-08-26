@@ -39,12 +39,28 @@ public final class WorkoutSessionCoordinator: ObservableObject, CameraFrameDeleg
     private let squatAnalyzer = SquatAnalyzer()
     private let bicepsCurlAnalyzer = BicepsCurlAnalyzer()
     private let shoulderPressAnalyzer = ShoulderPressAnalyzer()
+    private let tricepsPushdownAnalyzer = TricepsPushdownAnalyzer()
+    private let seatedRowAnalyzer = SeatedRowAnalyzer()
+    private let chestSupportedRowAnalyzer = ChestSupportedRowAnalyzer()
+    private let facePullAnalyzer = FacePullAnalyzer()
+    private let straightArmPulldownAnalyzer = StraightArmPulldownAnalyzer()
+    private let chestPressAnalyzer = ChestPressAnalyzer()
+    private let legPressAnalyzer = LegPressAnalyzer()
+    private let calfExtensionAnalyzer = CalfExtensionAnalyzer()
     
     public func analyzer(for exercise: ExerciseType) -> any ExerciseAnalyzerProtocol {
         switch exercise {
         case .squat: return squatAnalyzer
         case .bicepsCurl: return bicepsCurlAnalyzer
         case .shoulderPress: return shoulderPressAnalyzer
+        case .tricepsPushdown: return tricepsPushdownAnalyzer
+        case .seatedRow: return seatedRowAnalyzer
+        case .chestSupportedRow: return chestSupportedRowAnalyzer
+        case .facePull: return facePullAnalyzer
+        case .straightArmPulldown: return straightArmPulldownAnalyzer
+        case .chestPress: return chestPressAnalyzer
+        case .legPress: return legPressAnalyzer
+        case .calfExtension: return calfExtensionAnalyzer
         }
     }
     

@@ -3,6 +3,7 @@ import FormCoachCore
 
 public struct ExerciseSelectionView: View {
     @ObservedObject var coordinator: WorkoutSessionCoordinator
+    @State private var selectedCategory: ExerciseCategory? = nil // nil = All
     @State private var selectedExercise: ExerciseType = .squat
     @State private var selectedView: CameraViewType = .side
     
@@ -10,26 +11,66 @@ public struct ExerciseSelectionView: View {
         self.coordinator = coordinator
     }
     
+    private var filteredExercises: [ExerciseType] {
+        if let cat = selectedCategory {
+            return ExerciseType.allCases.filter { $0.category == cat }
+        }
+        return ExerciseType.allCases
+    }
+    
     public var body: some View {
-        VStack(spacing: 24) {
+        VStack(spacing: 16) {
             // Header
-            VStack(alignment: .leading, spacing: 6) {
+            VStack(alignment: .leading, spacing: 4) {
                 Text("FORMCOACH")
-                    .font(.system(size: 14, weight: .heavy, design: .rounded))
+                    .font(.system(size: 13, weight: .heavy, design: .rounded))
                     .foregroundColor(.green)
                     .tracking(2.0)
                 
                 Text("Select Exercise")
-                    .font(.system(size: 32, weight: .heavy, design: .rounded))
+                    .font(.system(size: 28, weight: .heavy, design: .rounded))
                     .foregroundColor(.white)
             }
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.top, 16)
+            .padding(.top, 10)
             
-            // Exercise Cards Carousel / List
+            // Category Filter Pills
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 8) {
+                    Button(action: { selectedCategory = nil }) {
+                        Text("All")
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(selectedCategory == nil ? .black : .white)
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 8)
+                            .background(selectedCategory == nil ? Color.green : Color(white: 0.16))
+                            .cornerRadius(12)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    ForEach(ExerciseCategory.allCases) { cat in
+                        Button(action: { selectedCategory = cat }) {
+                            HStack(spacing: 4) {
+                                Text(cat.icon)
+                                Text(cat.rawValue)
+                            }
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
+                            .foregroundColor(selectedCategory == cat ? .black : .white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 8)
+                            .background(selectedCategory == cat ? Color.green : Color(white: 0.16))
+                            .cornerRadius(12)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 2)
+            }
+            
+            // Exercise Cards List
             ScrollView(.vertical, showsIndicators: false) {
-                VStack(spacing: 16) {
-                    ForEach(ExerciseType.allCases) { exercise in
+                VStack(spacing: 12) {
+                    ForEach(filteredExercises) { exercise in
                         ExerciseCard(
                             exercise: exercise,
                             isSelected: selectedExercise == exercise,
@@ -40,27 +81,27 @@ public struct ExerciseSelectionView: View {
                         )
                     }
                 }
-                .padding(.vertical, 4)
+                .padding(.vertical, 2)
             }
             
             // Camera View Selector
-            VStack(alignment: .leading, spacing: 10) {
-                Text("CAMERA ANGLE")
-                    .font(.system(size: 12, weight: .bold, design: .rounded))
+            VStack(alignment: .leading, spacing: 8) {
+                Text("RECOMMENDED CAMERA ANGLE")
+                    .font(.system(size: 11, weight: .bold, design: .rounded))
                     .foregroundColor(.gray)
                 
-                HStack(spacing: 10) {
+                HStack(spacing: 8) {
                     ForEach(selectedExercise.supportedViews, id: \.self) { viewType in
                         Button(action: {
                             selectedView = viewType
                         }) {
                             Text(viewType.rawValue)
-                                .font(.system(size: 13, weight: .bold, design: .rounded))
+                                .font(.system(size: 12, weight: .bold, design: .rounded))
                                 .foregroundColor(selectedView == viewType ? .black : .white)
-                                .padding(.horizontal, 14)
-                                .padding(.vertical, 10)
+                                .padding(.horizontal, 12)
+                                .padding(.vertical, 8)
                                 .background(selectedView == viewType ? Color.green : Color(white: 0.18))
-                                .cornerRadius(12)
+                                .cornerRadius(10)
                         }
                         .buttonStyle(.plain)
                     }
@@ -70,19 +111,17 @@ public struct ExerciseSelectionView: View {
             
             // Start Setup CTA
             PrimaryGymButton(
-                title: "Setup Camera & Position",
+                title: "Setup \(selectedExercise.displayName) Camera",
                 icon: "camera.fill",
-                color: selectedExercise.isM1Available ? .green : .gray,
+                color: .green,
                 action: {
-                    guard selectedExercise.isM1Available else { return }
                     coordinator.state = .cameraSetup(exercise: selectedExercise, view: selectedView)
                     coordinator.cameraService.startSession()
                 }
             )
-            .disabled(!selectedExercise.isM1Available)
         }
         .padding(.horizontal, 20)
-        .padding(.bottom, 20)
+        .padding(.bottom, 16)
         .background(Color.black.edgesIgnoringSafeArea(.all))
     }
 }
@@ -94,58 +133,48 @@ struct ExerciseCard: View {
     
     var body: some View {
         Button(action: onSelect) {
-            VStack(alignment: .leading, spacing: 14) {
+            VStack(alignment: .leading, spacing: 10) {
                 HStack {
-                    VStack(alignment: .leading, spacing: 4) {
+                    VStack(alignment: .leading, spacing: 3) {
                         Text(exercise.displayName)
-                            .font(.system(size: 22, weight: .heavy, design: .rounded))
+                            .font(.system(size: 18, weight: .heavy, design: .rounded))
                             .foregroundColor(.white)
                         
                         Text(exercise.subtitle)
-                            .font(.system(size: 14, weight: .medium))
+                            .font(.system(size: 12, weight: .medium))
                             .foregroundColor(.gray)
                     }
                     
                     Spacer()
                     
-                    if exercise.isM1Available {
-                        Text("ACTIVE")
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
-                            .foregroundColor(.black)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color.green)
-                            .cornerRadius(6)
-                    } else {
-                        Text("COMING SOON")
-                            .font(.system(size: 10, weight: .heavy, design: .rounded))
-                            .foregroundColor(.gray)
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background(Color(white: 0.2))
-                            .cornerRadius(6)
-                    }
+                    Text("ACTIVE")
+                        .font(.system(size: 10, weight: .heavy, design: .rounded))
+                        .foregroundColor(.black)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.green)
+                        .cornerRadius(6)
                 }
                 
                 // Key metrics list tags
-                HStack(spacing: 6) {
+                HStack(spacing: 5) {
                     ForEach(exercise.keyMetricsList, id: \.self) { metric in
                         Text(metric)
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundColor(.white.opacity(0.8))
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
+                            .font(.system(size: 10, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.85))
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
                             .background(Color.white.opacity(0.08))
-                            .cornerRadius(6)
+                            .cornerRadius(5)
                     }
                 }
             }
-            .padding(18)
+            .padding(14)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(isSelected ? Color(white: 0.16) : Color(white: 0.10))
-            .cornerRadius(18)
+            .cornerRadius(16)
             .overlay(
-                RoundedRectangle(cornerRadius: 18)
+                RoundedRectangle(cornerRadius: 16)
                     .stroke(isSelected ? Color.green : Color.white.opacity(0.06), lineWidth: isSelected ? 2 : 1)
             )
         }
