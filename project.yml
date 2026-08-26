@@ -14,13 +14,12 @@ settings:
 
 targets:
   FormCoachCore:
-    type: framework
+    type: library.static
     platform: iOS
     deploymentTarget: "17.0"
     sources:
       - path: Sources/FormCoachCore
     settings:
-      PRODUCT_BUNDLE_IDENTIFIER: com.ianropke.formcoachcore
       PRODUCT_NAME: FormCoachCore
       DEFINES_MODULE: YES
       SKIP_INSTALL: YES
