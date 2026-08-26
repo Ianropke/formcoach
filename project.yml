@@ -13,13 +13,28 @@ settings:
   TARGETED_DEVICE_FAMILY: "1"
 
 targets:
+  FormCoachCore:
+    type: framework
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Sources/FormCoachCore
+    settings:
+      PRODUCT_BUNDLE_IDENTIFIER: com.ianropke.formcoachcore
+      PRODUCT_NAME: FormCoachCore
+      DEFINES_MODULE: YES
+      SKIP_INSTALL: YES
+      SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
+      TARGETED_DEVICE_FAMILY: "1"
+
   FormCoach:
     type: application
     platform: iOS
     deploymentTarget: "17.0"
     sources:
-      - path: Sources/FormCoachCore
       - path: Sources/FormCoachUI
+    dependencies:
+      - target: FormCoachCore
     settings:
       PRODUCT_BUNDLE_IDENTIFIER: com.ianropke.formcoach
       PRODUCT_NAME: FormCoach
@@ -35,7 +50,6 @@ targets:
       SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
       TARGETED_DEVICE_FAMILY: "1"
       CODE_SIGN_STYLE: Automatic
-      DEVELOPMENT_TEAM: ""
 
   FormCoachTests:
     type: bundle.unit-test
@@ -44,6 +58,7 @@ targets:
     sources:
       - path: Tests/FormCoachTests
     dependencies:
+      - target: FormCoachCore
       - target: FormCoach
     settings:
       SUPPORTED_PLATFORMS: "iphoneos iphonesimulator"
