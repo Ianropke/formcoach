@@ -1,8 +1,10 @@
-# FormCoach 🏋️‍♂️
+# FormCoach — Local-First Biomechanics & Strength Training Engine
 
-> Native iOS Strength-Training Form Analysis using On-Device Computer Vision & Deterministic Biomechanics.
+> **Live Production Web PWA**: [https://formcoach-orpin.vercel.app](https://formcoach-orpin.vercel.app)
+> 
+> **Target Device**: iPhone 17 (Runs directly in Safari, zero Apple developer certificates required).
 
-FormCoach runs 100% on-device on iPhone (optimized for iPhone 17 with iOS 17+). Put the iPhone down at the gym, record a set, and receive evidence-based analysis of repetitions, range of motion, tempo, symmetry, consistency, and observable form — with **0.00 DKK recurring cost** and zero cloud dependencies.
+Put your iPhone down at the gym, record a set, and immediately receive an evidence-based kinematic analysis of repetitions, range of motion, tempo, symmetry, consistency, and observable form — without uploading video to paid cloud AI services (0.00 DKK operating cost).
 
 ---
 
