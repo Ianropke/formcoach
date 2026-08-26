@@ -1,8 +1,11 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { ExerciseType, CameraViewType, EXERCISES, PoseFrame, RecordedSet } from '../core/models';
 import { getAnalyzerForExercise } from '../core/analyzers/exerciseAnalyzers';
+import { PoseSmoother } from '../core/poseSmoother';
 import { AngleCalculator } from '../core/angleCalculator';
-import { Square, ArrowLeft, CheckCircle2, AlertCircle } from 'lucide-react';
+import { CameraQualityGate, CameraQualityResult } from '../core/qualityGate';
+import { PoseLandmarkerService } from '../vision/poseLandmarkerService';
+import { Square, ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, XCircle } from 'lucide-react';
 
 interface Props {
   exercise: ExerciseType;
@@ -20,48 +23,64 @@ export const CameraRecordingView: React.FC<Props> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
-  const [phase, setPhase] = useState<'setup' | 'countdown' | 'recording' | 'analyzing'>('setup');
+  const [phase, setPhase] = useState<'setup' | 'countdown' | 'recording' | 'analyzing' | 'insufficient'>('setup');
   const [countdown, setCountdown] = useState(3);
   const [elapsedTime, setElapsedTime] = useState(0);
   const [liveAngle, setLiveAngle] = useState<number | null>(null);
-  const [liveRepCount, setLiveRepCount] = useState(0);
   const [hasCameraAccess, setHasCameraAccess] = useState<boolean | null>(null);
+  const [isModelLoaded, setIsModelLoaded] = useState(false);
+  const [qualityGate, setQualityGate] = useState<CameraQualityResult>({
+    isReady: false,
+    fullBody: false,
+    clearView: false,
+    optimalScale: false,
+    guidanceMessage: 'Initializing camera & pose engine…'
+  });
 
   const recordedFramesRef = useRef<PoseFrame[]>([]);
   const animationFrameId = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
+  const poseSmootherRef = useRef(new PoseSmoother(0.35));
 
   const exerciseDef = EXERCISES[exercise];
 
-  // Initialize WebRTC Camera
+  // 1. Initialize Camera & MediaPipe Tasks Vision Model
   useEffect(() => {
     let stream: MediaStream | null = null;
+    let isCancelled = false;
 
-    async function initCamera() {
+    async function init() {
       try {
+        // Initialize MediaPipe PoseLandmarker
+        const landmarkerService = PoseLandmarkerService.getInstance();
+        await landmarkerService.initialize();
+        if (!isCancelled) setIsModelLoaded(true);
+
+        // Open iPhone camera via getUserMedia
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: 'environment', // Rear camera by default on iPhone
+            facingMode: 'environment', // Rear camera by default on gym floor
             width: { ideal: 1280 },
             height: { ideal: 720 }
           },
           audio: false
         });
 
-        if (videoRef.current) {
+        if (videoRef.current && !isCancelled) {
           videoRef.current.srcObject = stream;
-          videoRef.current.play();
+          await videoRef.current.play();
           setHasCameraAccess(true);
         }
       } catch (err) {
-        console.error('Camera access error:', err);
-        setHasCameraAccess(false);
+        console.error('Camera or MediaPipe initialization error:', err);
+        if (!isCancelled) setHasCameraAccess(false);
       }
     }
 
-    initCamera();
+    init();
 
     return () => {
+      isCancelled = true;
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
@@ -71,56 +90,58 @@ export const CameraRecordingView: React.FC<Props> = ({
     };
   }, []);
 
-  // Real-time Vision Tracking Loop
+  // 2. Real-Time Vision Inference & Canvas Rendering Loop
   useEffect(() => {
-    if (!hasCameraAccess) return;
+    if (!hasCameraAccess || !isModelLoaded) return;
 
-    let syntheticTime = 0;
+    const landmarkerService = PoseLandmarkerService.getInstance();
 
     const renderLoop = () => {
       const video = videoRef.current;
       const canvas = canvasRef.current;
 
       if (video && canvas && video.readyState >= 2) {
+        const timestampMs = performance.now();
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+
         const ctx = canvas.getContext('2d');
         if (ctx) {
-          canvas.width = video.videoWidth || 640;
-          canvas.height = video.videoHeight || 480;
-
-          // Clear overlay
           ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-          // Approximate or extracted live landmarks
-          syntheticTime += 0.033;
-          const progress = (syntheticTime % 2.5) / 2.5;
-          const currentKneeAngle = 175 - 90 * Math.sin(progress * Math.PI);
-          const currentElbowAngle = 165 - 105 * Math.sin(progress * Math.PI);
-          const activeAngle = exercise === 'squat' || exercise === 'legPress' ? currentKneeAngle : currentElbowAngle;
+          // Run genuine MediaPipe Pose Landmarker on video frame
+          const rawPose = landmarkerService.detectForVideo(video, timestampMs);
 
-          setLiveAngle(Math.round(activeAngle));
+          if (rawPose) {
+            // Evaluate dynamic camera quality gate
+            const quality = CameraQualityGate.evaluateQuality(rawPose, exercise);
+            setQualityGate(quality);
 
-          // Draw green skeletal landmarks
-          drawLiveSkeleton(ctx, canvas.width, canvas.height, activeAngle, exercise);
+            // Compute real measured joint angle
+            const angle = computeActiveAngle(rawPose, exercise);
+            if (angle !== null) setLiveAngle(Math.round(angle));
 
-          // Record frame if in recording phase
-          if (phase === 'recording') {
-            const frame: PoseFrame = {
-              timestamp: (Date.now() - startTimeRef.current) / 1000,
-              joints: {
-                left_shoulder: { x: 0.5, y: 0.3, score: 0.95 },
-                left_elbow: { x: 0.45, y: 0.45, score: 0.95 },
-                left_wrist: { x: 0.42, y: 0.55, score: 0.95 },
-                left_hip: { x: 0.5, y: 0.55, score: 0.95 },
-                left_knee: { x: 0.52, y: 0.75, score: 0.95 },
-                left_ankle: { x: 0.52, y: 0.95, score: 0.95 }
-              },
-              confidence: 0.96
-            };
-            recordedFramesRef.current.push(frame);
+            // Draw genuine detected skeleton
+            drawDetectedSkeleton(ctx, canvas.width, canvas.height, rawPose);
 
-            // Live rep counter estimation
-            const repsEstimate = Math.floor(frame.timestamp / 2.5);
-            setLiveRepCount(repsEstimate);
+            // Record frame during recording phase
+            if (phase === 'recording') {
+              const recordedFrame: PoseFrame = {
+                timestamp: (Date.now() - startTimeRef.current) / 1000,
+                joints: rawPose.joints,
+                confidence: rawPose.confidence
+              };
+              recordedFramesRef.current.push(recordedFrame);
+            }
+          } else {
+            setLiveAngle(null);
+            setQualityGate({
+              isReady: false,
+              fullBody: false,
+              clearView: false,
+              optimalScale: false,
+              guidanceMessage: 'No person detected in frame. Step into camera view.'
+            });
           }
         }
       }
@@ -133,7 +154,7 @@ export const CameraRecordingView: React.FC<Props> = ({
     return () => {
       if (animationFrameId.current) cancelAnimationFrame(animationFrameId.current);
     };
-  }, [hasCameraAccess, phase, exercise]);
+  }, [hasCameraAccess, isModelLoaded, phase, exercise]);
 
   // Elapsed Time Timer in Recording Phase
   useEffect(() => {
@@ -170,22 +191,41 @@ export const CameraRecordingView: React.FC<Props> = ({
     setPhase('analyzing');
 
     setTimeout(() => {
+      const rawFrames = recordedFramesRef.current;
+
+      // 1. Check if sufficient frames were recorded
+      if (rawFrames.length < 15) {
+        setPhase('insufficient');
+        return;
+      }
+
+      // 2. Smooth landmarks
+      const smoothedFrames = poseSmootherRef.current.smooth(rawFrames);
+
+      // 3. Run deterministic rep segmentation
       const analyzer = getAnalyzerForExercise(exercise);
-      const frames = recordedFramesRef.current;
-      const reps = analyzer.segmentReps(frames, view);
-      const analysis = analyzer.analyzeSet(reps, frames, view);
+      const reps = analyzer.segmentReps(smoothedFrames, view);
+
+      // 4. Honest Status Gate: If no complete reps detected, do NOT fabricate data
+      if (reps.length === 0) {
+        setPhase('insufficient');
+        return;
+      }
+
+      // 5. Biomechanical Kinematic Analysis
+      const analysis = analyzer.analyzeSet(reps, smoothedFrames, view);
 
       const recordedSet: RecordedSet = {
         id: 'set_' + Date.now(),
         exercise,
         view,
         date: new Date().toISOString(),
-        reps: reps.length > 0 ? reps : generateFallbackReps(exercise, liveRepCount || 8),
-        analysis: reps.length > 0 ? analysis : generateFallbackAnalysis(exercise, liveRepCount || 8)
+        reps,
+        analysis
       };
 
       onFinishSet(recordedSet);
-    }, 600);
+    }, 400);
   };
 
   return (
@@ -199,7 +239,7 @@ export const CameraRecordingView: React.FC<Props> = ({
         className="absolute inset-0 w-full h-full object-cover"
       />
 
-      {/* 2. Skeleton Canvas Overlay */}
+      {/* 2. Genuine Skeleton Canvas Overlay */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full pointer-events-none"
@@ -233,10 +273,16 @@ export const CameraRecordingView: React.FC<Props> = ({
       <div className="relative z-10 flex flex-col items-center">
         {phase === 'recording' && (
           <div className="flex flex-col items-center gap-1 bg-black/70 backdrop-blur-md px-6 py-3 rounded-2xl border border-white/10">
-            <div className="text-4xl font-black text-white">{liveRepCount} <span className="text-sm font-semibold text-neutral-400">REPS</span></div>
-            {liveAngle !== null && (
-              <div className="text-xs font-bold text-[#00E676]">Angle: {liveAngle}°</div>
+            {liveAngle !== null ? (
+              <div className="text-3xl font-black text-[#00E676] font-mono">
+                {liveAngle}°
+              </div>
+            ) : (
+              <div className="text-xs font-bold text-neutral-400">Tracking pose…</div>
             )}
+            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+              Live Joint Angle
+            </div>
           </div>
         )}
 
@@ -252,34 +298,63 @@ export const CameraRecordingView: React.FC<Props> = ({
         {phase === 'analyzing' && (
           <div className="flex flex-col items-center gap-3 bg-black/80 backdrop-blur-md px-8 py-6 rounded-2xl border border-[#00E676]/30">
             <div className="w-10 h-10 border-4 border-[#00E676] border-t-transparent rounded-full animate-spin" />
-            <div className="text-sm font-bold text-white">Computing Biomechanics…</div>
+            <div className="text-sm font-bold text-white">Segmenting Repetitions…</div>
+          </div>
+        )}
+
+        {/* Insufficient Data / Tracking Failed Overlay */}
+        {phase === 'insufficient' && (
+          <div className="p-6 mx-4 bg-neutral-950/95 backdrop-blur-xl rounded-3xl border border-red-500/30 text-center max-w-sm">
+            <XCircle className="w-12 h-12 text-red-500 mx-auto mb-2" />
+            <div className="text-lg font-black text-white">No Repetitions Detected</div>
+            <p className="text-xs text-neutral-300 mt-2 mb-4 leading-relaxed">
+              Could not segment complete repetitions with sufficient joint confidence. Please place your phone ~1.5m away so your full body is visible.
+            </p>
+            <button
+              onClick={() => setPhase('setup')}
+              className="w-full bg-[#00E676] hover:bg-[#00E676]/90 text-black font-extrabold text-sm py-3.5 rounded-2xl flex items-center justify-center gap-2"
+            >
+              <RefreshCw className="w-4 h-4" />
+              <span>Retry Camera Setup</span>
+            </button>
           </div>
         )}
       </div>
 
-      {/* Bottom Setup Guidance / Controls */}
+      {/* Bottom Setup Guidance / Dynamic Quality Gate */}
       <div className="relative z-10 p-4 pb-8 bg-gradient-to-t from-black via-black/80 to-transparent">
         {phase === 'setup' && (
           <div className="space-y-3 max-w-md mx-auto">
-            {/* Guidance Checks */}
-            <div className="flex items-center justify-around bg-neutral-900/80 backdrop-blur-md p-3 rounded-2xl border border-white/10 text-xs font-bold text-neutral-300">
-              <div className="flex items-center gap-1.5 text-[#00E676]">
+            {/* Dynamic Guidance Checkmarks */}
+            <div className="flex items-center justify-around bg-neutral-900/80 backdrop-blur-md p-3 rounded-2xl border border-white/10 text-xs font-bold">
+              <div className={`flex items-center gap-1.5 ${qualityGate.fullBody ? 'text-[#00E676]' : 'text-neutral-500'}`}>
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Full Body</span>
               </div>
-              <div className="flex items-center gap-1.5 text-[#00E676]">
+              <div className={`flex items-center gap-1.5 ${qualityGate.clearView ? 'text-[#00E676]' : 'text-neutral-500'}`}>
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Clear View</span>
               </div>
-              <div className="flex items-center gap-1.5 text-[#00E676]">
+              <div className={`flex items-center gap-1.5 ${qualityGate.optimalScale ? 'text-[#00E676]' : 'text-neutral-500'}`}>
                 <CheckCircle2 className="w-4 h-4" />
                 <span>Optimal Scale</span>
               </div>
             </div>
 
+            {/* Guidance Text */}
+            <div className="text-center text-xs font-semibold text-neutral-300">
+              {qualityGate.guidanceMessage}
+            </div>
+
+            {/* Start Button enabled only when Quality Gate passes */}
             <button
               onClick={handleStartCountdown}
-              className="w-full bg-[#00E676] hover:bg-[#00E676]/90 text-black font-extrabold text-lg py-4 rounded-2xl shadow-xl shadow-[#00E676]/30 active:scale-[0.98] transition-transform"
+              disabled={!qualityGate.isReady}
+              className={`w-full font-extrabold text-lg py-4 rounded-2xl shadow-xl transition-all ${
+                qualityGate.isReady
+                  ? 'bg-[#00E676] hover:bg-[#00E676]/90 text-black shadow-[#00E676]/30 active:scale-[0.98]'
+                  : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
+              }`}
             >
               Start Countdown (3s)
             </button>
@@ -309,56 +384,70 @@ export const CameraRecordingView: React.FC<Props> = ({
   );
 };
 
-function drawLiveSkeleton(ctx: CanvasRenderingContext2D, width: number, height: number, angle: number, exercise: ExerciseType) {
+function computeActiveAngle(frame: PoseFrame, exercise: ExerciseType): number | null {
+  const joints = frame.joints;
+
+  if (exercise === 'squat' || exercise === 'legPress') {
+    const hip = joints.left_hip || joints.right_hip;
+    const knee = joints.left_knee || joints.right_knee;
+    const ankle = joints.left_ankle || joints.right_ankle;
+    if (hip && knee && ankle) {
+      return AngleCalculator.angle2D(hip, knee, ankle);
+    }
+  } else {
+    // Upper body (curls, pushdown, press)
+    const s = joints.left_shoulder || joints.right_shoulder;
+    const e = joints.left_elbow || joints.right_elbow;
+    const w = joints.left_wrist || joints.right_wrist;
+    if (s && e && w) {
+      return AngleCalculator.angle2D(s, e, w);
+    }
+  }
+  return null;
+}
+
+function drawDetectedSkeleton(ctx: CanvasRenderingContext2D, width: number, height: number, frame: PoseFrame) {
   ctx.strokeStyle = '#00E676';
   ctx.fillStyle = '#00E676';
-  ctx.lineWidth = 4;
+  ctx.lineWidth = 3.5;
 
-  const cx = width * 0.5;
-  const cy = height * 0.45;
+  const joints = frame.joints;
 
-  // Head
-  ctx.beginPath();
-  ctx.arc(cx, cy - 80, 20, 0, Math.PI * 2);
-  ctx.stroke();
+  const bones: [keyof typeof joints, keyof typeof joints][] = [
+    ['left_shoulder', 'right_shoulder'],
+    ['left_shoulder', 'left_elbow'],
+    ['left_elbow', 'left_wrist'],
+    ['right_shoulder', 'right_elbow'],
+    ['right_elbow', 'right_wrist'],
+    ['left_shoulder', 'left_hip'],
+    ['right_shoulder', 'right_hip'],
+    ['left_hip', 'right_hip'],
+    ['left_hip', 'left_knee'],
+    ['left_knee', 'left_ankle'],
+    ['right_hip', 'right_knee'],
+    ['right_knee', 'right_ankle']
+  ];
 
-  // Torso
-  ctx.beginPath();
-  ctx.moveTo(cx, cy - 60);
-  ctx.lineTo(cx, cy + 50);
-  ctx.stroke();
+  // Draw Bones
+  for (const [j1, j2] of bones) {
+    const p1 = joints[j1];
+    const p2 = joints[j2];
+    if (p1 && p2 && p1.score > 0.4 && p2.score > 0.4) {
+      ctx.beginPath();
+      ctx.moveTo(p1.x * width, p1.y * height);
+      ctx.lineTo(p2.x * width, p2.y * height);
+      ctx.stroke();
+    }
+  }
 
-  // Draw Arm or Leg with calculated angle
-  if (exercise === 'squat' || exercise === 'legPress') {
-    const kneeY = cy + 120;
-    const rad = (angle * Math.PI) / 180;
-    const footX = cx + 60 * Math.sin(rad);
-    const footY = kneeY + 60 * Math.cos(rad);
-
-    ctx.beginPath();
-    ctx.moveTo(cx, cy + 50);
-    ctx.lineTo(cx - 20, kneeY);
-    ctx.lineTo(footX - 20, footY);
-    ctx.stroke();
-  } else {
-    // Arm
-    const elbowX = cx - 35;
-    const elbowY = cy - 20;
-    const rad = (angle * Math.PI) / 180;
-    const wristX = elbowX + 45 * Math.cos(rad);
-    const wristY = elbowY - 45 * Math.sin(rad);
-
-    ctx.beginPath();
-    ctx.moveTo(cx, cy - 50);
-    ctx.lineTo(elbowX, elbowY);
-    ctx.lineTo(wristX, wristY);
-    ctx.stroke();
-
-    // Yellow vertex dot at elbow
-    ctx.fillStyle = '#FFEB3B';
-    ctx.beginPath();
-    ctx.arc(elbowX, elbowY, 6, 0, Math.PI * 2);
-    ctx.fill();
+  // Draw Joint Dots
+  for (const key in joints) {
+    const pt = joints[key as keyof typeof joints];
+    if (pt && pt.score > 0.4) {
+      ctx.beginPath();
+      ctx.arc(pt.x * width, pt.y * height, 5, 0, Math.PI * 2);
+      ctx.fill();
+    }
   }
 }
 
@@ -367,42 +456,4 @@ function formatTime(sec: number) {
   const s = Math.floor(sec % 60);
   const t = Math.floor((sec % 1) * 10);
   return `${m}:${s.toString().padStart(2, '0')}.${t}`;
-}
-
-function generateFallbackReps(exercise: ExerciseType, count: number) {
-  return Array.from({ length: Math.max(5, count) }, (_, i) => ({
-    index: i + 1,
-    startTime: i * 2.5,
-    inflectionTime: i * 2.5 + 1.2,
-    endTime: (i + 1) * 2.5,
-    duration: 2.5,
-    concentricDuration: 1.2,
-    eccentricDuration: 1.3,
-    primaryROM: exercise === 'squat' ? 84 : 68,
-    secondaryROM: 6,
-    confidence: 0.96
-  }));
-}
-
-function generateFallbackAnalysis(exercise: ExerciseType, count: number) {
-  return {
-    overallScore: 94,
-    romScore: 96,
-    consistencyScore: 94,
-    tempoScore: 92,
-    primaryObservation: `Clean ${exercise} execution with ${count} repetitions at full range of motion.`,
-    observations: [
-      {
-        id: 'strict.form',
-        title: 'Strict Execution',
-        detail: 'Controlled eccentric lowering with full extension at the apex.',
-        evidence: 'Under 6° movement variance detected.',
-        severity: 'positive' as const,
-        affectedReps: [1, 2, 3, 4, 5]
-      }
-    ],
-    repCount: count,
-    meanROM: exercise === 'squat' ? 84 : 68,
-    meanDuration: 2.5
-  };
 }

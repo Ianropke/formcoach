@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <rect width="512" height="512" rx="115" fill="#000000"/>
+  <!-- Glowing Green Hex Ring -->
+  <circle cx="256" cy="256" r="210" fill="none" stroke="#00E676" stroke-width="12" opacity="0.2"/>
+  
+  <!-- Biomechanical Athlete Glyph -->
+  <circle cx="256" cy="140" r="40" fill="none" stroke="#00E676" stroke-width="24"/>
+  
+  <!-- Spine -->
+  <line x1="256" y1="180" x2="256" y2="310" stroke="#FFFFFF" stroke-width="28" stroke-linecap="round"/>
+  
+  <!-- Arms holding barbell -->
+  <line x1="256" y1="210" x2="160" y2="240" stroke="#00E676" stroke-width="24" stroke-linecap="round"/>
+  <line x1="160" y1="240" x2="130" y2="180" stroke="#00E676" stroke-width="24" stroke-linecap="round"/>
+  
+  <line x1="256" y1="210" x2="352" y2="240" stroke="#00E676" stroke-width="24" stroke-linecap="round"/>
+  <line x1="352" y1="240" x2="382" y2="180" stroke="#00E676" stroke-width="24" stroke-linecap="round"/>
+  
+  <!-- Barbell -->
+  <line x1="90" y1="180" x2="422" y2="180" stroke="#00E676" stroke-width="16" stroke-linecap="round"/>
+  <rect x="70" y="145" width="24" height="70" rx="8" fill="#00E676"/>
+  <rect x="418" y="145" width="24" height="70" rx="8" fill="#00E676"/>
+
+  <!-- Legs -->
+  <line x1="256" y1="310" x2="190" y2="400" stroke="#00E676" stroke-width="24" stroke-linecap="round"/>
+  <line x1="190" y1="400" x2="160" y2="460" stroke="#00E676" stroke-width="24" stroke-linecap="round"/>
+
+  <line x1="256" y1="310" x2="322" y2="400" stroke="#00E676" stroke-width="24" stroke-linecap="round"/>
+  <line x1="322" y1="400" x2="352" y2="460" stroke="#00E676" stroke-width="24" stroke-linecap="round"/>
+
+  <!-- Angle Vertex Highlight -->
+  <circle cx="160" cy="240" r="14" fill="#FFEB3B"/>
+  <circle cx="352" cy="240" r="14" fill="#FFEB3B"/>
+</svg>

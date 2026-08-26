@@ -18,3 +18,4 @@ FormCoachTestRunner
 # Artifacts & Local testing
 .tempmediaStorage/
 scratch/
+.vercel

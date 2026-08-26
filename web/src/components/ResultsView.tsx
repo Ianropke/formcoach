@@ -1,25 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { RecordedSet, EXERCISES } from '../core/models';
-import { Check, Plus, BarChart3, RotateCcw, AlertTriangle } from 'lucide-react';
+import { Check, Plus, BarChart3, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface Props {
   set: RecordedSet;
   activeSetsCount: number;
-  onLogNextSet: () => void;
-  onFinishWorkout: () => void;
+  onSaveAndLogNext: () => void;
+  onSaveAndFinish: () => void;
   onDiscard: () => void;
 }
 
 export const ResultsView: React.FC<Props> = ({
   set,
   activeSetsCount,
-  onLogNextSet,
-  onFinishWorkout,
+  onSaveAndLogNext,
+  onSaveAndFinish,
   onDiscard
 }) => {
   const [selectedRepIndex, setSelectedRepIndex] = useState(1);
-  const exerciseDef = EXERCISES[set.exercise];
+  const exerciseDef = EXERCISES[set.exercise] || Object.values(EXERCISES)[0];
 
   useEffect(() => {
     // Trigger confetti celebration on high quality set
@@ -46,9 +46,13 @@ export const ResultsView: React.FC<Props> = ({
             {set.reps.length} reps detected • Set {activeSetsCount + 1}
           </div>
         </div>
-        <div className="bg-[#00E676]/15 border border-[#00E676]/30 text-[#00E676] text-xs font-extrabold px-3 py-1 rounded-xl">
-          98% TRACKING
-        </div>
+        <button
+          onClick={onDiscard}
+          className="flex items-center gap-1 text-xs font-bold text-red-400 bg-red-950/40 border border-red-500/20 px-3 py-1.5 rounded-xl hover:bg-red-950/70 transition-colors"
+        >
+          <Trash2 className="w-3.5 h-3.5" />
+          <span>Discard</span>
+        </button>
       </div>
 
       {/* Skeleton Visualizer Box */}
@@ -106,7 +110,7 @@ export const ResultsView: React.FC<Props> = ({
             >
               <div className="flex items-center justify-between gap-2 text-[10px] font-black">
                 <span className="text-neutral-400">REP {rep.index}</span>
-                <span className="text-[#00E676]">STRICT</span>
+                <span className="text-[#00E676]">MEASURED</span>
               </div>
               <div className="text-sm font-black text-white mt-0.5">
                 {Math.round(rep.primaryROM)}° <span className="text-[10px] text-neutral-500 font-normal">{rep.duration.toFixed(1)}s</span>
@@ -120,7 +124,7 @@ export const ResultsView: React.FC<Props> = ({
       <div className="p-3.5 bg-neutral-950 rounded-2xl border border-[#00E676]/30 mb-3">
         <div className="flex items-center gap-1.5 text-[11px] font-black text-[#00E676] tracking-wider uppercase mb-1">
           <Check className="w-3.5 h-3.5" />
-          <span>KEY FINDING</span>
+          <span>KEY OBSERVATION</span>
         </div>
         <p className="text-xs font-semibold leading-relaxed text-neutral-200">
           {set.analysis.primaryObservation}
@@ -158,26 +162,26 @@ export const ResultsView: React.FC<Props> = ({
           <div className="text-2xl font-black text-white mt-1">
             {set.analysis.overallScore}<span className="text-xs text-neutral-500">/100</span>
           </div>
-          <div className="text-[11px] text-[#00E676] mt-0.5">Strict execution</div>
+          <div className="text-[11px] text-[#00E676] mt-0.5">Strict kinematics</div>
         </div>
       </div>
 
-      {/* Multi-Set Actions */}
+      {/* Explicit Save Actions */}
       <div className="space-y-2 mt-auto">
         <button
-          onClick={onLogNextSet}
+          onClick={onSaveAndLogNext}
           className="w-full bg-[#00E676] hover:bg-[#00E676]/90 text-black font-extrabold text-base py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#00E676]/20 active:scale-[0.98] transition-transform"
         >
           <Plus className="w-5 h-5" />
-          <span>LOG NEXT SET (SET {activeSetsCount + 2})</span>
+          <span>SAVE & LOG NEXT SET (SET {activeSetsCount + 2})</span>
         </button>
 
         <button
-          onClick={onFinishWorkout}
+          onClick={onSaveAndFinish}
           className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm py-3.5 rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-[0.98] transition-transform"
         >
           <BarChart3 className="w-4 h-4 text-[#00E676]" />
-          <span>FINISH WORKOUT & VIEW SUMMARY</span>
+          <span>SAVE & VIEW SUMMARY</span>
         </button>
       </div>
     </div>

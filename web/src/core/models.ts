@@ -1,4 +1,4 @@
-export type ExerciseCategory = 'arms' | 'pull' | 'push' | 'legs';
+export type ExerciseCategory = 'arms' | 'push' | 'legs';
 
 export interface ExerciseCategoryInfo {
   id: ExerciseCategory;
@@ -7,24 +7,17 @@ export interface ExerciseCategoryInfo {
 }
 
 export const EXERCISE_CATEGORIES: ExerciseCategoryInfo[] = [
-  { id: 'pull', name: 'Back & Pull', icon: '🚣‍♂️' },
   { id: 'arms', name: 'Arms', icon: '💪' },
-  { id: 'push', name: 'Chest & Shoulders', icon: '🏋️‍♂️' },
   { id: 'legs', name: 'Legs & Lower Body', icon: '🦵' },
+  { id: 'push', name: 'Shoulders & Press', icon: '🏋️‍♂️' },
 ];
 
 export type ExerciseType =
-  | 'seatedRow'
-  | 'chestSupportedRow'
-  | 'facePull'
-  | 'straightArmPulldown'
   | 'bicepsCurl'
   | 'tricepsPushdown'
-  | 'chestPress'
-  | 'shoulderPress'
   | 'squat'
   | 'legPress'
-  | 'calfExtension';
+  | 'shoulderPress';
 
 export type CameraViewType = 'side' | 'front45' | 'front';
 
@@ -36,45 +29,10 @@ export interface ExerciseDefinition {
   recommendedView: CameraViewType;
   supportedViews: CameraViewType[];
   keyMetrics: string[];
+  status: 'ACTIVE' | 'IN_DEVELOPMENT';
 }
 
 export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
-  seatedRow: {
-    id: 'seatedRow',
-    name: 'Seated Cable Row',
-    subtitle: 'Cable / Machine Row',
-    category: 'pull',
-    recommendedView: 'side',
-    supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Retraction ROM', 'Torso Stability', 'Tempo', 'Rep Count']
-  },
-  chestSupportedRow: {
-    id: 'chestSupportedRow',
-    name: 'Chest Supported Incline Row',
-    subtitle: 'Incline Dumbbell / Machine Row',
-    category: 'pull',
-    recommendedView: 'side',
-    supportedViews: ['side', 'front45'],
-    keyMetrics: ['Peak Retraction', 'Eccentric Control', 'Tempo', 'Rep Count']
-  },
-  facePull: {
-    id: 'facePull',
-    name: 'Face Pull',
-    subtitle: 'High Cable Rope Face Pull',
-    category: 'pull',
-    recommendedView: 'front',
-    supportedViews: ['front', 'front45', 'side'],
-    keyMetrics: ['Elbow Height Level', 'External Rotation', 'Tempo', 'Rep Count']
-  },
-  straightArmPulldown: {
-    id: 'straightArmPulldown',
-    name: 'Rope Straight Arm Pulldown',
-    subtitle: 'High Cable Lat Pulldown',
-    category: 'pull',
-    recommendedView: 'side',
-    supportedViews: ['side', 'front45'],
-    keyMetrics: ['Arm Arc ROM', 'Elbow Lock Stability', 'Tempo', 'Rep Count']
-  },
   bicepsCurl: {
     id: 'bicepsCurl',
     name: 'Bicep Curls',
@@ -82,7 +40,8 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'arms',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Elbow ROM', 'Shoulder Drift', 'Tempo', 'Rep Count']
+    keyMetrics: ['Elbow ROM', 'Shoulder Drift', 'Tempo', 'Rep Count'],
+    status: 'ACTIVE'
   },
   tricepsPushdown: {
     id: 'tricepsPushdown',
@@ -91,25 +50,8 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'arms',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Lockout ROM', 'Pinned Elbow Stability', 'Tempo', 'Rep Count']
-  },
-  chestPress: {
-    id: 'chestPress',
-    name: 'Chest Press Machine',
-    subtitle: 'Machine / Dumbbell Press',
-    category: 'push',
-    recommendedView: 'side',
-    supportedViews: ['side', 'front45'],
-    keyMetrics: ['Chest Depth ROM', 'Lockout Extension', 'Tempo', 'Rep Count']
-  },
-  shoulderPress: {
-    id: 'shoulderPress',
-    name: 'Shoulder Press',
-    subtitle: 'Overhead Press',
-    category: 'push',
-    recommendedView: 'front',
-    supportedViews: ['front', 'front45', 'side'],
-    keyMetrics: ['Lockout ROM', 'Press Symmetry', 'Tempo', 'Rep Count']
+    keyMetrics: ['Lockout ROM', 'Pinned Elbow Stability', 'Tempo', 'Rep Count'],
+    status: 'ACTIVE'
   },
   squat: {
     id: 'squat',
@@ -118,7 +60,8 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'legs',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Knee Depth / ROM', 'Torso Incline', 'Tempo', 'Rep Count']
+    keyMetrics: ['Knee Depth (≤88°)', 'Torso Incline', 'Tempo', 'Rep Count'],
+    status: 'ACTIVE'
   },
   legPress: {
     id: 'legPress',
@@ -127,16 +70,18 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'legs',
     recommendedView: 'side',
     supportedViews: ['side', 'front45'],
-    keyMetrics: ['Knee Flexion Depth', 'Controlled Extension', 'Tempo', 'Rep Count']
+    keyMetrics: ['Knee Flexion Depth', 'Controlled Extension', 'Tempo', 'Rep Count'],
+    status: 'ACTIVE'
   },
-  calfExtension: {
-    id: 'calfExtension',
-    name: 'Calf Extension / Raise',
-    subtitle: 'Machine / Leg Press Calf Raise',
-    category: 'legs',
-    recommendedView: 'side',
-    supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Ankle ROM', 'Peak Stretch & Squeeze', 'Tempo', 'Rep Count']
+  shoulderPress: {
+    id: 'shoulderPress',
+    name: 'Shoulder Press',
+    subtitle: 'Overhead Press',
+    category: 'push',
+    recommendedView: 'front',
+    supportedViews: ['front', 'front45', 'side'],
+    keyMetrics: ['Lockout ROM', 'Bilateral Asymmetry (|L-R|)', 'Tempo', 'Rep Count'],
+    status: 'ACTIVE'
   }
 };
 

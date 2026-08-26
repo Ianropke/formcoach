@@ -6,13 +6,13 @@ import { CameraRecordingView } from './components/CameraRecordingView';
 import { ResultsView } from './components/ResultsView';
 import { WorkoutSummaryView } from './components/WorkoutSummaryView';
 import { BaselinesView } from './components/BaselinesView';
-import { Dumbbell, Activity, History } from 'lucide-react';
+import { Dumbbell, Activity } from 'lucide-react';
 
 export default function App() {
   const [currentTab, setCurrentTab] = useState<'workout' | 'baselines'>('workout');
   const [activeFlow, setActiveFlow] = useState<'selector' | 'recording' | 'results' | 'summary'>('selector');
 
-  const [selectedExercise, setSelectedExercise] = useState<ExerciseType>('seatedRow');
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseType>('bicepsCurl');
   const [selectedView, setSelectedView] = useState<CameraViewType>('side');
 
   const [activeSessionSets, setActiveSessionSets] = useState<RecordedSet[]>([]);
@@ -29,20 +29,35 @@ export default function App() {
     setActiveFlow('recording');
   };
 
+  // Preview result in-memory before persisting
   const handleFinishSet = (set: RecordedSet) => {
-    LocalStorageManager.saveSet(set);
-    setHistory(LocalStorageManager.getRecordedSets());
     setCurrentResultSet(set);
-    setActiveSessionSets(prev => [...prev, set]);
     setActiveFlow('results');
   };
 
-  const handleLogNextSet = () => {
+  const handleSaveAndLogNext = () => {
+    if (currentResultSet) {
+      LocalStorageManager.saveSet(currentResultSet);
+      setActiveSessionSets(prev => [...prev, currentResultSet]);
+      setHistory(LocalStorageManager.getRecordedSets());
+    }
     setActiveFlow('recording');
   };
 
-  const handleFinishWorkout = () => {
+  const handleSaveAndFinish = () => {
+    if (currentResultSet) {
+      LocalStorageManager.saveSet(currentResultSet);
+      const updated = [...activeSessionSets, currentResultSet];
+      setActiveSessionSets(updated);
+      setHistory(LocalStorageManager.getRecordedSets());
+    }
     setActiveFlow('summary');
+  };
+
+  const handleDiscard = () => {
+    // Drop in-memory set completely without writing to storage
+    setCurrentResultSet(null);
+    setActiveFlow('selector');
   };
 
   const handleDoneSummary = () => {
@@ -75,10 +90,10 @@ export default function App() {
             {activeFlow === 'results' && currentResultSet && (
               <ResultsView
                 set={currentResultSet}
-                activeSetsCount={activeSessionSets.length - 1}
-                onLogNextSet={handleLogNextSet}
-                onFinishWorkout={handleFinishWorkout}
-                onDiscard={() => setActiveFlow('selector')}
+                activeSetsCount={activeSessionSets.length}
+                onSaveAndLogNext={handleSaveAndLogNext}
+                onSaveAndFinish={handleSaveAndFinish}
+                onDiscard={handleDiscard}
               />
             )}
 

@@ -6,16 +6,17 @@ This document governs the engineering standards, architectural invariants, and c
 
 ## 1. Non-Negotiable Invariants
 
-1. **Local-First & Zero-Cloud**:
+1. **Local-First & Zero-Cloud Inference**:
+   - Web PWA (React + TypeScript + `@mediapipe/tasks-vision` WASM/WebGL) is the canonical production platform.
+   - Video frames, camera streams, and pose landmarks MUST NEVER leave the user's device.
    - NEVER add network requests, backend endpoints, or cloud database SDKs for exercise analysis.
    - NEVER integrate OpenAI, Gemini, Anthropic, or paid cloud vision APIs.
    - Analysis recurring operational cost MUST remain **0 DKK**.
-2. **Deterministic Kinematics Before AI**:
-   - Biomechanical metrics (angles, ROM, tempo, consistency) MUST be computed mathematically using vector geometry.
-   - NEVER use generative AI or probabilistic guessing for core rep counting and angles.
-   - NEVER invent or synthesize fake pose coordinates when tracking fails; mark confidence as `INSUFFICIENT`.
+2. **Deterministic Kinematics Before AI, Zero Fabricated Data**:
+   - Biomechanical metrics (angles, ROM, tempo, consistency, asymmetry) MUST be computed mathematically using vector geometry from observed landmarks.
+   - NEVER synthesize fake coordinates, synthetic timers, or fallback 90+ scores when tracking fails; mark status as `Insufficient Data / Repetitions Not Detected`.
 3. **Strict Domain Decoupling**:
-   - Vision frameworks (`Vision`, `AVFoundation`) MUST NOT contain exercise-specific logic.
+   - Vision service (`PoseLandmarkerService`) MUST NOT contain exercise-specific logic.
    - Exercise Analyzers MUST consume normalized `PoseFrame` domain models.
 4. **Zero Compromise on Privacy**:
    - NEVER collect, store, or transmit facial identification vectors or biometric identity profiles.

@@ -10,7 +10,11 @@ export default defineConfig({
     tailwindcss(),
     VitePWA({
       registerType: 'autoUpdate',
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png'],
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'pwa-192x192.png', 'pwa-512x512.png', 'icon.svg'],
+      workbox: {
+        maximumFileSizeToCacheInBytes: 25 * 1024 * 1024, // 25MB for on-device WASM and ML model caching
+        globPatterns: ['**/*.{js,css,html,ico,png,svg,wasm,task}']
+      },
       manifest: {
         name: 'FormCoach — Local-First Biomechanics',
         short_name: 'FormCoach',

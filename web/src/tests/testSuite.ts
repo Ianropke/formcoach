@@ -1,14 +1,14 @@
 import { AngleCalculator } from '../core/angleCalculator';
 import { PoseSmoother } from '../core/poseSmoother';
-import { SquatAnalyzer, BicepCurlAnalyzer, SeatedRowAnalyzer, TricepsPushdownAnalyzer, ShoulderPressAnalyzer, LegPressAnalyzer, FacePullAnalyzer, StraightArmPulldownAnalyzer, ChestPressAnalyzer, CalfExtensionAnalyzer } from '../core/analyzers/exerciseAnalyzers';
+import { SquatAnalyzer, BicepCurlAnalyzer, TricepsPushdownAnalyzer, ShoulderPressAnalyzer, LegPressAnalyzer } from '../core/analyzers/exerciseAnalyzers';
 import { CrossSetFatigueAnalyzer } from '../core/fatigueAnalyzer';
 import { PersonalBaselineEngine } from '../core/baselineEngine';
 import { PoseFrame, RecordedSet } from '../core/models';
-import { SyntheticSquatGenerator, SyntheticCurlGenerator } from './syntheticGenerators';
+import { SyntheticSquatGenerator, SyntheticCurlGenerator, SyntheticPressGenerator } from './syntheticGenerators';
 
 console.log('========================================================');
-console.log('    FORMCOACH PWA DETERMINISTIC BIOMECHANICS TEST SUITE ');
-console.log('        (100% FEATURE PARITY WITH NATIVE SWIFT)         ');
+console.log('    FORMCOACH DETERMINISTIC BIOMECHANICS TEST SUITE     ');
+console.log('    (MATHEMATICAL VECTOR GEOMETRY & STATE MACHINES)     ');
 console.log('========================================================\n');
 
 let passCount = 0;
@@ -51,12 +51,12 @@ assert('PoseSmoother: Short-Gap Dropout Interpolation (2 frames)', smoothed[1].j
 // 4. Squat Rep Segmenter: 10 clean reps
 const squatAnalyzer = new SquatAnalyzer();
 const squatFrames = SyntheticSquatGenerator.generateSquatSet(10, 30.0, 175.0, 85.0, 3.0, 1.0);
-const squatReps = squatAnalyzer.segmentReps(squatFrames);
+const squatReps = squatAnalyzer.segmentReps(squatFrames, 'side');
 assert('SquatRepSegmenter: Clean 10-Rep Squat Sequence', squatReps.length === 10);
 
 // 5. Leg Press Machine Analyzer
 const legPressAnalyzer = new LegPressAnalyzer();
-const legPressReps = legPressAnalyzer.segmentReps(squatFrames);
+const legPressReps = legPressAnalyzer.segmentReps(squatFrames, 'side');
 assert('LegPressAnalyzer: 10-Rep Machine Leg Press Set', legPressReps.length === 10);
 
 // 6. Biceps Curl Analyzer: Strict 10 reps
@@ -72,23 +72,26 @@ const driftAnalysis = curlAnalyzer.analyzeSet(driftCurlReps);
 const hasShoulderWarning = driftAnalysis.observations.some(o => o.id === 'curl.shoulder.drift');
 assert('BicepsCurlRules: Shoulder Drift Warning Trigger (>18°)', hasShoulderWarning);
 
-// 8. Triceps Pushdown: Pinned elbow drift warning (>20°)
+// 8. Triceps Pushdown: Pinned elbow drift tracking
 const pushdownAnalyzer = new TricepsPushdownAnalyzer();
-const pushdownReps = pushdownAnalyzer.segmentReps(strictCurlFrames);
+const pushdownFrames = SyntheticCurlGenerator.generateCurlSet(6, 30.0, 160.0, 65.0, 0.0, 2.4, 0.8);
+const pushdownReps = pushdownAnalyzer.segmentReps(pushdownFrames);
 const pushdownAnalysis = pushdownAnalyzer.analyzeSet(pushdownReps);
 assert('TricepsPushdownAnalyzer: Pushdown Analysis & Lockout Validation', pushdownAnalysis.overallScore > 70);
 
-// 9. Seated Row Analyzer: Strict Form & Scapular Retraction
-const rowAnalyzer = new SeatedRowAnalyzer();
-const rowReps = rowAnalyzer.segmentReps(strictCurlFrames);
-const rowAnalysis = rowAnalyzer.analyzeSet(rowReps);
-assert('SeatedRowAnalyzer: Strict Row Retraction Analysis', rowAnalysis.overallScore >= 90);
+// 9. Shoulder Press Analyzer: Bilateral arm symmetry
+const pressAnalyzer = new ShoulderPressAnalyzer();
+const symmetricalPressFrames = SyntheticPressGenerator.generatePressSet(5, 30.0, 80.0, 160.0, 160.0);
+const symmetricalReps = pressAnalyzer.segmentReps(symmetricalPressFrames);
+const symmetricalAnalysis = pressAnalyzer.analyzeSet(symmetricalReps);
+assert('ShoulderPressRules: Symmetrical Press Validation', (symmetricalAnalysis.symmetryScore ?? 0) >= 90);
 
-// 10. Shoulder Press Analyzer: Symmetrical Overhead Press Analysis
-const shoulderPressAnalyzer = new ShoulderPressAnalyzer();
-const pressReps = shoulderPressAnalyzer.segmentReps(strictCurlFrames);
-const pressAnalysis = shoulderPressAnalyzer.analyzeSet(pressReps);
-assert('ShoulderPressAnalyzer: Symmetrical Overhead Press Analysis', pressAnalysis.symmetryScore !== undefined);
+// 10. Shoulder Press Analyzer: Bilateral arm asymmetry warning (>12°)
+const asymmetricalPressFrames = SyntheticPressGenerator.generatePressSet(5, 30.0, 80.0, 160.0, 138.0);
+const asymmetricalReps = pressAnalyzer.segmentReps(asymmetricalPressFrames);
+const asymmetricalAnalysis = pressAnalyzer.analyzeSet(asymmetricalReps);
+const hasAsymmetryWarning = asymmetricalAnalysis.observations.some(o => o.id === 'press.bilateral.asymmetry');
+assert('ShoulderPressRules: Bilateral Arm Asymmetry Warning Trigger (>12°)', hasAsymmetryWarning);
 
 // 11. Cross-Set Fatigue Analyzer: 4-Set progressive decay
 const mockSets: RecordedSet[] = [

@@ -115,7 +115,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		0155449DD589AEAD69D425DC /* FormCoachTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = FormCoachTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		0155449DD589AEAD69D425DC /* FormCoachTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = FormCoachTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		032322B404B695A79D9322D4 /* AnalyzingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnalyzingView.swift; sourceTree = "<group>"; };
 		04FAEC47BD191065BE710891 /* SquatCameraGuide.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SquatCameraGuide.swift; sourceTree = "<group>"; };
 		09B07B0A4E558A095C21C4EA /* ShoulderPressMetrics.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoulderPressMetrics.swift; sourceTree = "<group>"; };
@@ -164,7 +164,7 @@
 		942E73873BF21679DB09DBE6 /* SetAnalysis.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SetAnalysis.swift; sourceTree = "<group>"; };
 		97CF137DB93EB5F87EA1867E /* ShoulderPressRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShoulderPressRules.swift; sourceTree = "<group>"; };
 		9A13548457D901D9CAEE70B4 /* CameraPermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPermissionManager.swift; sourceTree = "<group>"; };
-		9B20E3092184411731E2AA7B /* FormCoach.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = FormCoach.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		9B20E3092184411731E2AA7B /* FormCoach.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FormCoach.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		9BA81197A211DD77789A5137 /* SyntheticSquatGenerator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyntheticSquatGenerator.swift; sourceTree = "<group>"; };
 		9D1A49BC5DBB2393BEC5717F /* SquatRepSegmenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SquatRepSegmenter.swift; sourceTree = "<group>"; };
 		A0109B3106D16BC810645119 /* Repetition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Repetition.swift; sourceTree = "<group>"; };
@@ -894,6 +894,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 42FS8LPNS8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FormCoach;
 				INFOPLIST_KEY_NSCameraUsageDescription = "FormCoach analyserer din træningsform og tæller gentagelser lokalt på din iPhone.";
@@ -999,6 +1000,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 42FS8LPNS8;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -1024,6 +1026,7 @@
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 42FS8LPNS8;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_CFBundleDisplayName = FormCoach;
 				INFOPLIST_KEY_NSCameraUsageDescription = "FormCoach analyserer din træningsform og tæller gentagelser lokalt på din iPhone.";
@@ -1070,6 +1073,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
+				DEVELOPMENT_TEAM = 42FS8LPNS8;
 				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",

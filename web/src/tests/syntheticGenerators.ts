@@ -139,3 +139,76 @@ export class SyntheticCurlGenerator {
     };
   }
 }
+
+export class SyntheticPressGenerator {
+  public static generatePressSet(
+    repCount = 5,
+    fps = 30.0,
+    rackedAngle = 80.0,
+    lockoutAngleLeft = 160.0,
+    lockoutAngleRight = 160.0
+  ): PoseFrame[] {
+    const frames: PoseFrame[] = [];
+    let currentTime = 0.0;
+    const dt = 1.0 / fps;
+    const repDuration = 2.5;
+
+    for (let rep = 0; rep < repCount; rep++) {
+      const repFramesCount = Math.floor(repDuration * fps);
+      for (let f = 0; f < repFramesCount; f++) {
+        const progress = f / repFramesCount;
+        const leftAngle = rackedAngle + (lockoutAngleLeft - rackedAngle) * Math.sin(progress * Math.PI);
+        const rightAngle = rackedAngle + (lockoutAngleRight - rackedAngle) * Math.sin(progress * Math.PI);
+
+        frames.push(this.createPressFrame(currentTime, leftAngle, rightAngle));
+        currentTime += dt;
+      }
+    }
+
+    return frames;
+  }
+
+  public static createPressFrame(timestamp: number, leftAngle: number, rightAngle: number): PoseFrame {
+    const sL = { x: 0.40, y: 0.35, score: 0.96 };
+    const sR = { x: 0.60, y: 0.35, score: 0.96 };
+    const upperArmLen = 0.15;
+    const forearmLen = 0.15;
+
+    // Left elbow below shoulder
+    const eL = { x: 0.38, y: 0.50, score: 0.96 };
+    const eR = { x: 0.62, y: 0.50, score: 0.96 };
+
+    // Angle theta at elbow between (s - e) and (w - e)
+    const thetaLRad = (leftAngle * Math.PI) / 180.0;
+    const thetaRRad = (rightAngle * Math.PI) / 180.0;
+
+    // Upward angle of upper arm is ~atan2(sL.y - eL.y, sL.x - eL.x)
+    const baseAngleL = Math.atan2(sL.y - eL.y, sL.x - eL.x);
+    const baseAngleR = Math.atan2(sR.y - eR.y, sR.x - eR.x);
+
+    const wL = {
+      x: eL.x + forearmLen * Math.cos(baseAngleL + thetaLRad),
+      y: eL.y + forearmLen * Math.sin(baseAngleL + thetaLRad),
+      score: 0.96
+    };
+
+    const wR = {
+      x: eR.x + forearmLen * Math.cos(baseAngleR - thetaRRad),
+      y: eR.y + forearmLen * Math.sin(baseAngleR - thetaRRad),
+      score: 0.96
+    };
+
+    return {
+      timestamp,
+      joints: {
+        left_shoulder: sL,
+        right_shoulder: sR,
+        left_elbow: eL,
+        right_elbow: eR,
+        left_wrist: wL,
+        right_wrist: wR
+      },
+      confidence: 0.96
+    };
+  }
+}

@@ -8,14 +8,14 @@ interface Props {
 
 export const ExerciseSelector: React.FC<Props> = ({ onStartExercise }) => {
   const [selectedCategory, setSelectedCategory] = useState<ExerciseCategory | 'all'>('all');
-  const [selectedExercise, setSelectedExercise] = useState<ExerciseType>('seatedRow');
+  const [selectedExercise, setSelectedExercise] = useState<ExerciseType>('bicepsCurl');
   const [selectedView, setSelectedView] = useState<CameraViewType>('side');
 
   const exerciseList = Object.values(EXERCISES).filter(
     ex => selectedCategory === 'all' || ex.category === selectedCategory
   );
 
-  const currentExerciseDef = EXERCISES[selectedExercise];
+  const currentExerciseDef = EXERCISES[selectedExercise] || Object.values(EXERCISES)[0];
 
   const handleSelectExercise = (type: ExerciseType) => {
     setSelectedExercise(type);
@@ -38,7 +38,7 @@ export const ExerciseSelector: React.FC<Props> = ({ onStartExercise }) => {
             selectedCategory === 'all' ? 'bg-[#00E676] text-black shadow-lg shadow-[#00E676]/20' : 'bg-neutral-900 text-neutral-300'
           }`}
         >
-          All (9)
+          All (5)
         </button>
         {EXERCISE_CATEGORIES.map(cat => (
           <button
@@ -75,7 +75,7 @@ export const ExerciseSelector: React.FC<Props> = ({ onStartExercise }) => {
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="bg-[#00E676] text-black text-[10px] font-black px-2 py-0.5 rounded-md">
-                    ACTIVE
+                    VERIFIED
                   </span>
                   <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-[#00E676]' : 'text-neutral-600'}`} />
                 </div>
