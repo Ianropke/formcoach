@@ -1,0 +1,21 @@
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Swift / Xcode Build artifacts
+.build/
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+DerivedData/
+*.swiftmodule
+*.swiftdoc
+*.swiftsourceinfo
+*.abi.json
+*.dylib
+FormCoachTestRunner
+
+# Artifacts & Local testing
+.tempmediaStorage/
+scratch/
