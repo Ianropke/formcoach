@@ -5,7 +5,7 @@ import { PoseSmoother } from '../core/poseSmoother';
 import { AngleCalculator } from '../core/angleCalculator';
 import { CameraQualityGate, CameraQualityResult } from '../core/qualityGate';
 import { PoseLandmarkerService } from '../vision/poseLandmarkerService';
-import { Square, ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, XCircle } from 'lucide-react';
+import { Square, ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, XCircle, SwitchCamera } from 'lucide-react';
 
 interface Props {
   exercise: ExerciseType;
@@ -23,6 +23,7 @@ export const CameraRecordingView: React.FC<Props> = ({
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
+  const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [phase, setPhase] = useState<'setup' | 'countdown' | 'recording' | 'analyzing' | 'insufficient'>('setup');
   const [countdown, setCountdown] = useState(3);
   const [elapsedTime, setElapsedTime] = useState(0);
@@ -56,10 +57,16 @@ export const CameraRecordingView: React.FC<Props> = ({
         await landmarkerService.initialize();
         if (!isCancelled) setIsModelLoaded(true);
 
+        // Stop previous stream if switching camera
+        if (videoRef.current && videoRef.current.srcObject) {
+          const oldStream = videoRef.current.srcObject as MediaStream;
+          oldStream.getTracks().forEach(t => t.stop());
+        }
+
         // Open iPhone camera via getUserMedia
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
-            facingMode: 'environment', // Rear camera by default on gym floor
+            facingMode,
             width: { ideal: 1280 },
             height: { ideal: 720 }
           },
@@ -88,7 +95,7 @@ export const CameraRecordingView: React.FC<Props> = ({
         cancelAnimationFrame(animationFrameId.current);
       }
     };
-  }, []);
+  }, [facingMode]);
 
   // 2. Real-Time Vision Inference & Canvas Rendering Loop
   useEffect(() => {
@@ -261,11 +268,19 @@ export const CameraRecordingView: React.FC<Props> = ({
           </span>
         </div>
 
-        {phase === 'recording' && (
+        {phase === 'recording' ? (
           <div className="flex items-center gap-2 px-3 py-1.5 rounded-xl bg-red-950/80 border border-red-500/30 text-red-400">
             <div className="w-2.5 h-2.5 rounded-full bg-red-500 animate-ping" />
             <span className="text-xs font-black font-mono">{formatTime(elapsedTime)}</span>
           </div>
+        ) : (
+          <button
+            onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
+            title="Flip Camera (Front/Rear)"
+            className="p-2.5 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 hover:bg-neutral-800 transition-colors"
+          >
+            <SwitchCamera className="w-5 h-5 text-[#00E676]" />
+          </button>
         )}
       </div>
 

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { RecordedSet, EXERCISES } from '../core/models';
+import { RecordedSet, EXERCISES, ExerciseType } from '../core/models';
 import { Check, Plus, BarChart3, Trash2 } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
@@ -55,42 +55,18 @@ export const ResultsView: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* Skeleton Visualizer Box */}
+      {/* Dynamic Biomechanical Skeleton Visualizer Box */}
       <div className="relative w-full h-52 bg-neutral-950 rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center mb-3">
         <svg viewBox="0 0 360 210" className="w-full h-full">
-          {/* Floor / Bench */}
-          <line x1="60" y1="160" x2="300" y2="160" stroke="#222" strokeWidth="4" />
-
-          {/* Athlete Skeleton */}
-          <circle cx="180" cy="65" r="14" fill="none" stroke="#00E676" strokeWidth="2.5" />
-          <line x1="180" y1="79" x2="180" y2="140" stroke="#fff" strokeWidth="3.5" />
-
-          {/* Limbs based on selected rep */}
-          {set.exercise === 'squat' || set.exercise === 'legPress' ? (
-            <>
-              <line x1="180" y1="140" x2="155" y2="145" stroke="#00E676" strokeWidth="4" />
-              <line x1="155" y1="145" x2="160" y2="185" stroke="#00E676" strokeWidth="4" />
-              <circle cx="180" cy="140" r="5" fill="#00E676" />
-              <circle cx="155" cy="145" r="6" fill="#FFEB3B" stroke="#000" strokeWidth="2" />
-              <circle cx="160" cy="185" r="5" fill="#00E676" />
-            </>
-          ) : (
-            <>
-              <line x1="180" y1="90" x2="150" y2="95" stroke="#00E676" strokeWidth="4" />
-              <line x1="150" y1="95" x2="175" y2="120" stroke="#00E676" strokeWidth="4" />
-              <circle cx="180" cy="90" r="5" fill="#00E676" />
-              <circle cx="150" cy="95" r="6" fill="#FFEB3B" stroke="#000" strokeWidth="2" />
-              <circle cx="175" cy="120" r="5" fill="#00E676" />
-            </>
-          )}
+          {renderDynamicSkeleton(set.exercise, selectedRep.primaryROM)}
         </svg>
 
-        {/* Angle Badge */}
-        <div className="absolute top-3 left-3 bg-[#00E676] text-black font-black text-xs px-2.5 py-1 rounded-lg">
-          Angle: {Math.round(selectedRep.primaryROM)}°
+        {/* Measured Angle Badge */}
+        <div className="absolute top-3 left-3 bg-[#00E676] text-black font-black text-xs px-2.5 py-1 rounded-lg shadow-md shadow-[#00E676]/20">
+          Measured: {Math.round(selectedRep.primaryROM)}°
         </div>
-        <div className="absolute bottom-3 right-3 bg-black/70 font-mono text-[11px] text-neutral-300 px-2.5 py-1 rounded-lg border border-white/10">
-          Rep {selectedRep.index} • {selectedRep.duration.toFixed(1)}s
+        <div className="absolute bottom-3 right-3 bg-black/75 font-mono text-[11px] text-neutral-300 px-2.5 py-1 rounded-lg border border-white/10 backdrop-blur-xs">
+          Rep {selectedRep.index} • {selectedRep.duration.toFixed(1)}s (Ecc: {selectedRep.eccentricDuration.toFixed(1)}s / Con: {selectedRep.concentricDuration.toFixed(1)}s)
         </div>
       </div>
 
@@ -187,3 +163,114 @@ export const ResultsView: React.FC<Props> = ({
     </div>
   );
 };
+
+function renderDynamicSkeleton(exercise: ExerciseType, rom: number) {
+  const headCx = 180;
+  const headCy = 50;
+  const neckY = 64;
+  const spineEndY = 120;
+
+  if (exercise === 'squat' || exercise === 'legPress') {
+    const clampedAngle = Math.max(65, Math.min(175, rom));
+    const rad = (clampedAngle * Math.PI) / 180;
+    const hipY = 120 + ((180 - clampedAngle) / 180) * 25;
+    const kneeX = 145 - ((180 - clampedAngle) / 180) * 15;
+    const kneeY = hipY + Math.sin(rad / 2) * 40;
+    const ankleX = 170;
+    const ankleY = 185;
+
+    return (
+      <>
+        <line x1="50" y1="185" x2="310" y2="185" stroke="#333" strokeWidth="3" />
+        <line x1={headCx} y1={neckY} x2={headCx - 5} y2={hipY} stroke="#fff" strokeWidth="3.5" strokeLinecap="round" />
+        <circle cx={headCx} cy={headCy} r="13" fill="#111" stroke="#00E676" strokeWidth="2.5" />
+        <line x1={headCx - 5} y1={hipY} x2={kneeX} y2={kneeY} stroke="#00E676" strokeWidth="4" strokeLinecap="round" />
+        <line x1={kneeX} y1={kneeY} x2={ankleX} y2={ankleY} stroke="#00E676" strokeWidth="4" strokeLinecap="round" />
+        <line x1={headCx} y1={neckY + 10} x2={headCx - 35} y2={neckY + 25} stroke="#888" strokeWidth="3" strokeLinecap="round" />
+        <circle cx={headCx - 5} cy={hipY} r="5" fill="#00E676" />
+        <circle cx={kneeX} cy={kneeY} r="6" fill="#FFEB3B" stroke="#000" strokeWidth="2" />
+        <circle cx={ankleX} cy={ankleY} r="5" fill="#00E676" />
+      </>
+    );
+  } else if (exercise === 'bicepsCurl') {
+    const clampedAngle = Math.max(35, Math.min(160, rom));
+    const shoulderX = 175;
+    const shoulderY = 80;
+    const elbowX = 170;
+    const elbowY = 125;
+    const curlRad = ((180 - clampedAngle) * Math.PI) / 180;
+    const wristX = elbowX - Math.sin(curlRad) * 40;
+    const wristY = elbowY - Math.cos(curlRad) * 40;
+
+    return (
+      <>
+        <line x1="50" y1="185" x2="310" y2="185" stroke="#222" strokeWidth="3" />
+        <line x1={headCx} y1={neckY} x2={headCx} y2={spineEndY} stroke="#fff" strokeWidth="3.5" strokeLinecap="round" />
+        <circle cx={headCx} cy={headCy} r="13" fill="#111" stroke="#00E676" strokeWidth="2.5" />
+        <line x1={headCx} y1={spineEndY} x2={headCx} y2={185} stroke="#666" strokeWidth="3.5" strokeLinecap="round" />
+        <line x1={shoulderX} y1={shoulderY} x2={elbowX} y2={elbowY} stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+        <line x1={elbowX} y1={elbowY} x2={wristX} y2={wristY} stroke="#00E676" strokeWidth="4.5" strokeLinecap="round" />
+        <circle cx={wristX} cy={wristY} r="7" fill="#FFEB3B" stroke="#000" strokeWidth="2" />
+        <circle cx={shoulderX} cy={shoulderY} r="5" fill="#00E676" />
+        <circle cx={elbowX} cy={elbowY} r="6" fill="#FFEB3B" stroke="#000" strokeWidth="2" />
+      </>
+    );
+  } else if (exercise === 'shoulderPress') {
+    const clampedAngle = Math.max(80, Math.min(180, rom));
+    const shoulderL = 155;
+    const shoulderR = 205;
+    const shoulderY = 85;
+    const extRad = ((clampedAngle - 90) * Math.PI) / 180;
+    const elbowLX = 135 - Math.cos(extRad) * 15;
+    const elbowLY = 85 - Math.sin(extRad) * 25;
+    const wristLX = elbowLX + Math.cos(extRad) * 15;
+    const wristLY = elbowLY - Math.sin(extRad) * 35;
+
+    const elbowRX = 225 + Math.cos(extRad) * 15;
+    const elbowRY = 85 - Math.sin(extRad) * 25;
+    const wristRX = elbowRX - Math.cos(extRad) * 15;
+    const wristRY = elbowRY - Math.sin(extRad) * 35;
+
+    return (
+      <>
+        <line x1="50" y1="185" x2="310" y2="185" stroke="#222" strokeWidth="3" />
+        <line x1={headCx} y1={neckY} x2={headCx} y2={spineEndY} stroke="#fff" strokeWidth="3.5" strokeLinecap="round" />
+        <circle cx={headCx} cy={headCy} r="13" fill="#111" stroke="#00E676" strokeWidth="2.5" />
+        <line x1={headCx} y1={spineEndY} x2={165} y2={185} stroke="#666" strokeWidth="3.5" strokeLinecap="round" />
+        <line x1={headCx} y1={spineEndY} x2={195} y2={185} stroke="#666" strokeWidth="3.5" strokeLinecap="round" />
+        <line x1={shoulderL} y1={shoulderY} x2={elbowLX} y2={elbowLY} stroke="#00E676" strokeWidth="3.5" strokeLinecap="round" />
+        <line x1={elbowLX} y1={elbowLY} x2={wristLX} y2={wristLY} stroke="#00E676" strokeWidth="3.5" strokeLinecap="round" />
+        <line x1={shoulderR} y1={shoulderY} x2={elbowRX} y2={elbowRY} stroke="#00E676" strokeWidth="3.5" strokeLinecap="round" />
+        <line x1={elbowRX} y1={elbowRY} x2={wristRX} y2={wristRY} stroke="#00E676" strokeWidth="3.5" strokeLinecap="round" />
+        <line x1={wristLX - 15} y1={wristLY} x2={wristRX + 15} y2={wristRY} stroke="#FFEB3B" strokeWidth="4" strokeLinecap="round" />
+        <circle cx={elbowLX} cy={elbowLY} r="5" fill="#00E676" />
+        <circle cx={elbowRX} cy={elbowRY} r="5" fill="#00E676" />
+        <circle cx={wristLX} cy={wristLY} r="5" fill="#FFEB3B" stroke="#000" strokeWidth="1.5" />
+        <circle cx={wristRX} cy={wristRY} r="5" fill="#FFEB3B" stroke="#000" strokeWidth="1.5" />
+      </>
+    );
+  } else {
+    const clampedAngle = Math.max(70, Math.min(180, rom));
+    const shoulderX = 175;
+    const shoulderY = 80;
+    const elbowX = 170;
+    const elbowY = 120;
+    const extRad = (clampedAngle * Math.PI) / 180;
+    const wristX = elbowX + Math.sin(extRad - Math.PI/2) * 42;
+    const wristY = elbowY + Math.cos(extRad - Math.PI/2) * 42;
+
+    return (
+      <>
+        <line x1="50" y1="185" x2="310" y2="185" stroke="#222" strokeWidth="3" />
+        <line x1={headCx} y1={neckY} x2={headCx} y2={spineEndY} stroke="#fff" strokeWidth="3.5" strokeLinecap="round" />
+        <circle cx={headCx} cy={headCy} r="13" fill="#111" stroke="#00E676" strokeWidth="2.5" />
+        <line x1={headCx} y1={spineEndY} x2={headCx} y2={185} stroke="#666" strokeWidth="3.5" strokeLinecap="round" />
+        <line x1="210" y1="40" x2={wristX} y2={wristY} stroke="#555" strokeWidth="1.5" strokeDasharray="3 3" />
+        <line x1={shoulderX} y1={shoulderY} x2={elbowX} y2={elbowY} stroke="#fff" strokeWidth="4" strokeLinecap="round" />
+        <line x1={elbowX} y1={elbowY} x2={wristX} y2={wristY} stroke="#00E676" strokeWidth="4.5" strokeLinecap="round" />
+        <circle cx={wristX} cy={wristY} r="6" fill="#FFEB3B" stroke="#000" strokeWidth="2" />
+        <circle cx={elbowX} cy={elbowY} r="6" fill="#FFEB3B" stroke="#000" strokeWidth="2" />
+      </>
+    );
+  }
+}

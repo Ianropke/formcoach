@@ -21,6 +21,18 @@ export default function App() {
 
   useEffect(() => {
     setHistory(LocalStorageManager.getRecordedSets());
+
+    // Allow automated testing harness to preview flows
+    const handleTestFlow = (e: any) => {
+      const detail = e.detail;
+      if (detail?.flow) {
+        if (detail.set) setCurrentResultSet(detail.set);
+        if (detail.sessionSets) setActiveSessionSets(detail.sessionSets);
+        setActiveFlow(detail.flow);
+      }
+    };
+    window.addEventListener('formcoach_test_flow' as any, handleTestFlow);
+    return () => window.removeEventListener('formcoach_test_flow' as any, handleTestFlow);
   }, []);
 
   const handleStartExercise = (exercise: ExerciseType, view: CameraViewType) => {

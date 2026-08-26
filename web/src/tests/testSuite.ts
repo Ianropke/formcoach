@@ -103,14 +103,28 @@ const mockSets: RecordedSet[] = [
 const sessionFatigue = CrossSetFatigueAnalyzer.analyzeSession(mockSets);
 assert('CrossSetFatigueAnalyzer: Multi-Set Deterioration Detection', sessionFatigue.romTrend === 'degrading' && sessionFatigue.fatigueIndex > 40);
 
-// 12. PersonalBaselineEngine: Cold start guard & Personal Best
+// 12. PersonalBaselineEngine: Cold start guard & Flexion Personal Best
 const baseline = PersonalBaselineEngine.computeBaseline(mockSets, 'squat');
 assert('PersonalBaselineEngine: Baseline Established (>=3 sets, >=25 reps)', baseline.hasSufficientData === true);
 const pbCheck = PersonalBaselineEngine.compareSet(
   { id: '5', exercise: 'squat', view: 'side', date: '', reps: [{ index: 1, startTime: 0, inflectionTime: 1, endTime: 2, duration: 2, concentricDuration: 1, eccentricDuration: 1, primaryROM: 74, confidence: 1.0 }], analysis: mockSets[0].analysis },
   baseline
 );
-assert('PersonalBaselineEngine: Personal Best (PB) Flagging (74° < 80°)', pbCheck.isPersonalBest === true);
+assert('PersonalBaselineEngine: Personal Best (PB) Flexion Flagging (74° < 82°)', pbCheck.isPersonalBest === true);
+
+// 13. PersonalBaselineEngine: Extension Personal Best Flagging (Shoulder Press Lockout > 165°)
+const pressSets: RecordedSet[] = [
+  { id: 'p1', exercise: 'shoulderPress', view: 'front', date: '', reps: symmetricalReps, analysis: { overallScore: 95, romScore: 96, consistencyScore: 95, tempoScore: 93, primaryObservation: '', observations: [], repCount: 5, meanROM: 160, meanDuration: 2.0 } },
+  { id: 'p2', exercise: 'shoulderPress', view: 'front', date: '', reps: symmetricalReps, analysis: { overallScore: 95, romScore: 96, consistencyScore: 95, tempoScore: 93, primaryObservation: '', observations: [], repCount: 5, meanROM: 162, meanDuration: 2.0 } },
+  { id: 'p3', exercise: 'shoulderPress', view: 'front', date: '', reps: Array(15).fill(symmetricalReps[0]), analysis: { overallScore: 95, romScore: 96, consistencyScore: 95, tempoScore: 93, primaryObservation: '', observations: [], repCount: 15, meanROM: 163, meanDuration: 2.0 } }
+];
+const pressBaseline = PersonalBaselineEngine.computeBaseline(pressSets, 'shoulderPress');
+assert('PersonalBaselineEngine: Extension Baseline Standard Established', pressBaseline.hasSufficientData === true && pressBaseline.personalBestROM === 160);
+const pressPbCheck = PersonalBaselineEngine.compareSet(
+  { id: 'p4', exercise: 'shoulderPress', view: 'front', date: '', reps: [{ index: 1, startTime: 0, inflectionTime: 1, endTime: 2, duration: 2, concentricDuration: 1, eccentricDuration: 1, primaryROM: 172, confidence: 1.0 }], analysis: pressSets[0].analysis },
+  pressBaseline
+);
+assert('PersonalBaselineEngine: Personal Best (PB) Extension Lockout Flagging (172° > 160°)', pressPbCheck.isPersonalBest === true);
 
 console.log('\n========================================================');
 console.log(` TEST EXECUTION SUMMARY: ${passCount}/${totalCount} PASSED (${Math.round((passCount/totalCount)*100)}%)`);

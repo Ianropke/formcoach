@@ -15,8 +15,8 @@ export const WorkoutSummaryView: React.FC<Props> = ({
   allHistory,
   onDone
 }) => {
-  const primaryExercise = sets[0]?.exercise || 'seatedRow';
-  const exerciseDef = EXERCISES[primaryExercise];
+  const primaryExercise = sets[0]?.exercise || 'bicepsCurl';
+  const exerciseDef = EXERCISES[primaryExercise] || Object.values(EXERCISES)[0];
   const sessionAnalysis = CrossSetFatigueAnalyzer.analyzeSession(sets);
   const baseline = PersonalBaselineEngine.computeBaseline(allHistory, primaryExercise);
 
