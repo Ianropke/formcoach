@@ -8,8 +8,9 @@ public struct RecordingView: View {
     let startTime: Date
     
     @State private var elapsedTime: TimeInterval = 0.0
-    @State private var timer: Timer?
     @State private var isBlinking = false
+    
+    private let timer = Timer.publish(every: 0.1, on: .main, in: .common).autoconnect()
     
     public init(
         coordinator: WorkoutSessionCoordinator,
@@ -86,7 +87,6 @@ public struct RecordingView: View {
                     icon: "stop.fill",
                     color: .red,
                     action: {
-                        timer?.invalidate()
                         coordinator.stopRecording()
                     }
                 )
@@ -94,16 +94,13 @@ public struct RecordingView: View {
                 .padding(.bottom, 28)
             }
         }
+        .onReceive(timer) { now in
+            elapsedTime = now.timeIntervalSince(startTime)
+        }
         .onAppear {
-            timer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
-                elapsedTime = Date().timeIntervalSince(startTime)
-            }
             withAnimation(.easeInOut(duration: 0.8).repeatForever(autoreverses: true)) {
                 isBlinking = true
             }
-        }
-        .onDisappear {
-            timer?.invalidate()
         }
     }
     

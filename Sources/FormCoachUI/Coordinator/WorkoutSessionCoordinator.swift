@@ -15,7 +15,7 @@ public enum SessionFlowState: Sendable, Equatable {
 }
 
 @MainActor
-public final class WorkoutSessionCoordinator: ObservableObject, CameraFrameDelegate {
+public final class WorkoutSessionCoordinator: ObservableObject, CameraFrameDelegate, @unchecked Sendable {
     @Published public var state: SessionFlowState = .exerciseSelection
     @Published public var livePoseFrame: PoseFrame?
     @Published public var setupValidation: CameraSetupValidation?
@@ -64,7 +64,7 @@ public final class WorkoutSessionCoordinator: ObservableObject, CameraFrameDeleg
         }
     }
     
-    private var countdownTimer: Timer?
+    private var countdownTask: Task<Void, Never>?
     private var liveRepCount = 0
     
     public init() {
@@ -95,21 +95,14 @@ public final class WorkoutSessionCoordinator: ObservableObject, CameraFrameDeleg
     public func startCountdown() {
         guard case .cameraSetup(let exercise, let view) = state else { return }
         
-        var remaining = 3
-        state = .countdown(exercise: exercise, view: view, secondsRemaining: remaining)
-        
-        countdownTimer?.invalidate()
-        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
-            guard let self = self else { return }
-            Task { @MainActor in
-                remaining -= 1
-                if remaining > 0 {
-                    self.state = .countdown(exercise: exercise, view: view, secondsRemaining: remaining)
-                } else {
-                    timer.invalidate()
-                    self.startRecording(exercise: exercise, view: view)
-                }
+        countdownTask?.cancel()
+        countdownTask = Task { @MainActor in
+            for sec in (1...3).reversed() {
+                self.state = .countdown(exercise: exercise, view: view, secondsRemaining: sec)
+                try? await Task.sleep(nanoseconds: 1_000_000_000)
+                if Task.isCancelled { return }
             }
+            self.startRecording(exercise: exercise, view: view)
         }
     }
     
@@ -170,7 +163,7 @@ public final class WorkoutSessionCoordinator: ObservableObject, CameraFrameDeleg
     }
     
     public func resetToHome() {
-        countdownTimer?.invalidate()
+        countdownTask?.cancel()
         cameraService.stopSession()
         self.state = .exerciseSelection
         self.livePoseFrame = nil
@@ -184,32 +177,35 @@ public final class WorkoutSessionCoordinator: ObservableObject, CameraFrameDeleg
         didOutput sampleBuffer: CMSampleBuffer,
         timestamp: TimeInterval
     ) {
-        Task { @MainActor in
-            // Feed frame to video recorder if active
-            if case .recording = self.state {
-                self.videoRecorder.appendSampleBuffer(sampleBuffer)
-            }
-            
-            // Extract pose frame with Apple Vision
+        // Record frame directly on video recorder queue
+        self.videoRecorder.appendSampleBuffer(sampleBuffer)
+        
+        // Extract pose landmarks asynchronously
+        Task {
             if let rawPose = try? await self.poseService.processFrame(
                 sampleBuffer: sampleBuffer,
                 timestamp: timestamp,
                 orientation: .up
             ) {
-                self.livePoseFrame = rawPose
-                
-                switch self.state {
-                case .cameraSetup(let exercise, let view):
-                    let activeAnalyzer = self.analyzer(for: exercise)
-                    self.setupValidation = activeAnalyzer.validateCameraSetup(frame: rawPose, view: view)
-                    
-                case .recording:
-                    self.recordedFrames.append(rawPose)
-                    
-                default:
-                    break
-                }
+                await self.handleNewPose(rawPose)
             }
+        }
+    }
+    
+    @MainActor
+    private func handleNewPose(_ rawPose: PoseFrame) {
+        self.livePoseFrame = rawPose
+        
+        switch self.state {
+        case .cameraSetup(let exercise, let view):
+            let activeAnalyzer = self.analyzer(for: exercise)
+            self.setupValidation = activeAnalyzer.validateCameraSetup(frame: rawPose, view: view)
+            
+        case .recording:
+            self.recordedFrames.append(rawPose)
+            
+        default:
+            break
         }
     }
 }
