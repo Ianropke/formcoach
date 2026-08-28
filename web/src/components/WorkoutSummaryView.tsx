@@ -31,13 +31,13 @@ export const WorkoutSummaryView: React.FC<Props> = ({
           <ArrowLeft className="w-4 h-4" />
         </button>
         <div className="text-xs font-black uppercase text-[#00E676] tracking-widest">
-          WORKOUT COMPLETED
+          TRÆNING GENNEMFØRT
         </div>
         <div className="w-8" />
       </div>
 
       <h1 className="text-2xl font-black text-white tracking-tight mb-3">
-        {exerciseDef.name} Summary
+        {exerciseDef.name} Opsummering
       </h1>
 
       {/* Session Fatigue Gauge Card */}
@@ -45,14 +45,16 @@ export const WorkoutSummaryView: React.FC<Props> = ({
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-neutral-400">
             <Flame className="w-4 h-4 text-orange-400" />
-            <span>SESSION FATIGUE INDEX</span>
+            <span>UDMATTELSESINDEKS</span>
           </div>
-          <div className="text-xs font-black text-[#00E676]">LOW FATIGUE</div>
+          <div className="text-xs font-black text-[#00E676]">
+            {sessionAnalysis.fatigueIndex < 35 ? 'LAV UDMATTELSE' : sessionAnalysis.fatigueIndex < 70 ? 'MODERAT UDMATTELSE' : 'HØJ UDMATTELSE'}
+          </div>
         </div>
 
         <div className="flex items-baseline gap-2 mb-2">
           <div className="text-4xl font-black text-white">{sessionAnalysis.fatigueIndex}</div>
-          <div className="text-xs text-neutral-400 font-semibold">/ 100 Fatigue Load</div>
+          <div className="text-xs text-neutral-400 font-semibold">/ 100 Samlet belastning</div>
         </div>
 
         {/* Progress Bar */}
@@ -69,18 +71,18 @@ export const WorkoutSummaryView: React.FC<Props> = ({
         <div className="flex items-center gap-2 mb-1.5">
           <Trophy className="w-4 h-4 text-[#FFEB3B]" />
           <span className="text-xs font-black text-[#FFEB3B] uppercase tracking-wider">
-            PERSONAL BASELINE STATUS
+            PERSONLIG BASELINE STATUS
           </span>
         </div>
         <div className="text-xs font-semibold text-neutral-200">
-          Your personal baseline standard for {exerciseDef.name} is ~{baseline.baselineROMMean}° (±{baseline.baselineROMStdDev}°).
+          Din personlige baseline standard for {exerciseDef.name} er ~{baseline.baselineROMMean}° (±{baseline.baselineROMStdDev}°).
         </div>
       </div>
 
       {/* Set-by-Set Breakdown Table */}
       <div className="bg-neutral-950 rounded-2xl border border-white/10 p-3.5 mb-4">
         <div className="text-xs font-bold uppercase text-neutral-400 tracking-wider mb-2.5">
-          Set-By-Set Trajectory
+          Sæt-for-sæt Forløb
         </div>
 
         <div className="space-y-2">
@@ -113,7 +115,7 @@ export const WorkoutSummaryView: React.FC<Props> = ({
         onClick={onDone}
         className="mt-auto w-full bg-[#00E676] hover:bg-[#00E676]/90 text-black font-extrabold text-base py-4 rounded-2xl shadow-lg shadow-[#00E676]/20 active:scale-[0.98] transition-transform"
       >
-        Done & Save Workout
+        Afslut og Gem Træning
       </button>
     </div>
   );

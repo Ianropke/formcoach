@@ -67,7 +67,7 @@ export class PersonalBaselineEngine {
       return {
         isPersonalBest: true,
         isConsistent: true,
-        insight: `🏆 New Personal Best! Achieved ${Math.round(setBestROM)}° ${isExtension ? 'extension' : 'depth'} (surpassed previous ${baseline.personalBestROM}° standard).`
+        insight: `🏆 Ny Personlig Rekord! Nåede ${Math.round(setBestROM)}° ${isExtension ? 'ekstension' : 'dybde'} (slog din tidligere rekord på ${baseline.personalBestROM}°).`
       };
     }
 
@@ -78,13 +78,13 @@ export class PersonalBaselineEngine {
       return {
         isPersonalBest: false,
         isConsistent: true,
-        insight: `✓ Consistent with your personal baseline (~${baseline.baselineROMMean}° ±${baseline.baselineROMStdDev}°).`
+        insight: `✓ Flot stabilitet! På linje med din personlige baseline (~${baseline.baselineROMMean}° ±${baseline.baselineROMStdDev}°).`
       };
     } else {
       return {
         isPersonalBest: false,
         isConsistent: false,
-        insight: `Movement range varied from your typical ~${baseline.baselineROMMean}° personal standard.`
+        insight: `Bevægelsesbanen afveg fra din typiske standard på ~${baseline.baselineROMMean}°.`
       };
     }
   }

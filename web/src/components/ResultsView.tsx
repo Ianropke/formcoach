@@ -43,7 +43,7 @@ export const ResultsView: React.FC<Props> = ({
             {exerciseDef.name}
           </div>
           <div className="text-xs font-semibold text-neutral-400">
-            {set.reps.length} reps detected • Set {activeSetsCount + 1}
+            {set.reps.length} gentagelser målt • Sæt {activeSetsCount + 1}
           </div>
         </div>
         <button
@@ -51,7 +51,7 @@ export const ResultsView: React.FC<Props> = ({
           className="flex items-center gap-1 text-xs font-bold text-red-400 bg-red-950/40 border border-red-500/20 px-3 py-1.5 rounded-xl hover:bg-red-950/70 transition-colors"
         >
           <Trash2 className="w-3.5 h-3.5" />
-          <span>Discard</span>
+          <span>Kassér</span>
         </button>
       </div>
 
@@ -63,10 +63,10 @@ export const ResultsView: React.FC<Props> = ({
 
         {/* Measured Angle Badge */}
         <div className="absolute top-3 left-3 bg-[#00E676] text-black font-black text-xs px-2.5 py-1 rounded-lg shadow-md shadow-[#00E676]/20">
-          Measured: {Math.round(selectedRep.primaryROM)}°
+          Målt: {Math.round(selectedRep.primaryROM)}°
         </div>
         <div className="absolute bottom-3 right-3 bg-black/75 font-mono text-[11px] text-neutral-300 px-2.5 py-1 rounded-lg border border-white/10 backdrop-blur-xs">
-          Rep {selectedRep.index} • {selectedRep.duration.toFixed(1)}s (Ecc: {selectedRep.eccentricDuration.toFixed(1)}s / Con: {selectedRep.concentricDuration.toFixed(1)}s)
+          Gentagelse {selectedRep.index} • {selectedRep.duration.toFixed(1)}s (Eks: {selectedRep.eccentricDuration.toFixed(1)}s / Kon: {selectedRep.concentricDuration.toFixed(1)}s)
         </div>
       </div>
 
@@ -86,7 +86,7 @@ export const ResultsView: React.FC<Props> = ({
             >
               <div className="flex items-center justify-between gap-2 text-[10px] font-black">
                 <span className="text-neutral-400">REP {rep.index}</span>
-                <span className="text-[#00E676]">MEASURED</span>
+                <span className="text-[#00E676]">MÅLT</span>
               </div>
               <div className="text-sm font-black text-white mt-0.5">
                 {Math.round(rep.primaryROM)}° <span className="text-[10px] text-neutral-500 font-normal">{rep.duration.toFixed(1)}s</span>
@@ -100,7 +100,7 @@ export const ResultsView: React.FC<Props> = ({
       <div className="p-3.5 bg-neutral-950 rounded-2xl border border-[#00E676]/30 mb-3">
         <div className="flex items-center gap-1.5 text-[11px] font-black text-[#00E676] tracking-wider uppercase mb-1">
           <Check className="w-3.5 h-3.5" />
-          <span>KEY OBSERVATION</span>
+          <span>VIGTIGSTE OBSERVARING</span>
         </div>
         <p className="text-xs font-semibold leading-relaxed text-neutral-200">
           {set.analysis.primaryObservation}
@@ -111,59 +111,59 @@ export const ResultsView: React.FC<Props> = ({
       <div className="grid grid-cols-2 gap-2.5 mb-4">
         {/* Card 1: ROM & Dispersion */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
-          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Range of Motion</div>
+          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Bevægelsesbane (ROM)</div>
           <div className="text-2xl font-black text-white mt-1">
             ~{Math.round(set.analysis.meanROM)}°
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5 font-mono">
-            Dispersion: ±{set.analysis.romStdDev || 0}°
+            Spredning: ±{set.analysis.romStdDev || 0}°
           </div>
         </div>
 
         {/* Card 2: Tempo & Phase Breakdown */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
-          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Rep Duration & Split</div>
+          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Tempo & Faser</div>
           <div className="text-2xl font-black text-white mt-1">
             {set.analysis.meanDuration.toFixed(1)}s
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5 font-mono">
-            Ecc: {(set.analysis.eccentricMean || 1.2).toFixed(1)}s / Con: {(set.analysis.concentricMean || 1.1).toFixed(1)}s
+            Eks: {(set.analysis.eccentricMean || 1.2).toFixed(1)}s / Kon: {(set.analysis.concentricMean || 1.1).toFixed(1)}s
           </div>
         </div>
 
         {/* Card 3: Kinematic Stability / Relative Drift / Bilateral Asymmetry */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
           <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-            {set.exercise === 'shoulderPress' ? 'Bilateral Asymmetry' : 'Limb Drift (Δθ)'}
+            {set.exercise === 'shoulderPress' ? 'Bilateral Asymmetri' : 'Skuldersvaj (Δθ)'}
           </div>
           <div className="text-2xl font-black text-white mt-1">
             {set.exercise === 'shoulderPress'
               ? `~${Math.round(set.analysis.meanAsymmetry || 0)}°`
               : set.analysis.peakRelativeDrift !== undefined
               ? `Δ${Math.round(set.analysis.peakRelativeDrift)}°`
-              : set.analysis.stabilityStatus === 'STRICT_STABILITY' ? 'Strict' : 'Variable'}
+              : set.analysis.stabilityStatus === 'STRICT_STABILITY' ? 'Strikte' : 'Variabel'}
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5">
             {set.exercise === 'shoulderPress'
-              ? '|Left - Right| Delta'
+              ? '|Venstre - Højre| forskel'
               : set.analysis.peakRelativeDrift !== undefined
-              ? 'Peak Deflection vs Setup'
-              : 'Consistent Trajectory'}
+              ? 'Maksimal afvigelse'
+              : 'Stabil bane'}
           </div>
         </div>
 
         {/* Card 4: Fatigue / Late-Set Decay */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
-          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Fatigue / ROM Decay</div>
+          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Udmattelse / ROM-Fald</div>
           <div className={`text-2xl font-black mt-1 ${set.analysis.earlyLateROMDelta && set.analysis.earlyLateROMDelta >= 10 ? 'text-amber-400' : 'text-[#00E676]'}`}>
             {set.analysis.earlyLateROMDelta && set.analysis.earlyLateROMDelta > 0
               ? `+${Math.round(set.analysis.earlyLateROMDelta)}%`
-              : '0% Decay'}
+              : '0% Fald'}
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5">
             {set.analysis.earlyLateROMDelta && set.analysis.earlyLateROMDelta >= 10
-              ? 'Shallower on late reps'
-              : 'Stable depth through set'}
+              ? 'Mindre dybde i slutningen'
+              : 'Stabil dybde hele sættet'}
           </div>
         </div>
       </div>
@@ -175,7 +175,7 @@ export const ResultsView: React.FC<Props> = ({
           className="w-full bg-[#00E676] hover:bg-[#00E676]/90 text-black font-extrabold text-base py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#00E676]/20 active:scale-[0.98] transition-transform"
         >
           <Plus className="w-5 h-5" />
-          <span>SAVE & LOG NEXT SET (SET {activeSetsCount + 2})</span>
+          <span>GEM OG START NÆSTE SÆT (SÆT {activeSetsCount + 2})</span>
         </button>
 
         <button
@@ -183,7 +183,7 @@ export const ResultsView: React.FC<Props> = ({
           className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm py-3.5 rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-[0.98] transition-transform"
         >
           <BarChart3 className="w-4 h-4 text-[#00E676]" />
-          <span>SAVE & VIEW SUMMARY</span>
+          <span>GEM OG SE TRÆNINGSOVERSIGT</span>
         </button>
       </div>
     </div>

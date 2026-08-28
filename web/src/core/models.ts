@@ -7,9 +7,9 @@ export interface ExerciseCategoryInfo {
 }
 
 export const EXERCISE_CATEGORIES: ExerciseCategoryInfo[] = [
-  { id: 'arms', name: 'Arms', icon: '💪' },
-  { id: 'legs', name: 'Legs & Lower Body', icon: '🦵' },
-  { id: 'push', name: 'Shoulders & Press', icon: '🏋️‍♂️' },
+  { id: 'arms', name: 'Arme', icon: '💪' },
+  { id: 'legs', name: 'Ben & Underkrop', icon: '🦵' },
+  { id: 'push', name: 'Skuldre & Bryst', icon: '🏋️‍♂️' },
 ];
 
 export type ExerciseType =
@@ -39,55 +39,55 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
   bicepsCurl: {
     id: 'bicepsCurl',
     name: 'Bicep Curls',
-    subtitle: 'Dumbbell / Barbell Curl',
+    subtitle: 'Håndvægte / Vægtstang',
     category: 'arms',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Elbow ROM (±σ)', 'Relative Shoulder Drift (Δθ)', 'Tempo (Ecc/Con)', 'Rep Count'],
+    keyMetrics: ['Bevægelsesbane (ROM)', 'Skuldersvaj (Δθ)', 'Tempo (Løft/Sænk)', 'Gentagelser'],
     status: 'ACTIVE',
     tier: 'TIER_A_VERIFIED'
   },
   tricepsPushdown: {
     id: 'tricepsPushdown',
     name: 'Triceps Pushdown',
-    subtitle: 'Cable Rope / Bar Extension',
+    subtitle: 'Kabeltræk med reb eller stang',
     category: 'arms',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Lockout ROM', 'Upper Arm Drift (Δθ)', 'Tempo (Ecc/Con)', 'Rep Count'],
+    keyMetrics: ['Bundstræk (Lockout)', 'Overarms-stabilitet', 'Tempo (Løft/Sænk)', 'Gentagelser'],
     status: 'ACTIVE',
     tier: 'TIER_A_VERIFIED'
   },
   squat: {
     id: 'squat',
     name: 'Squat',
-    subtitle: 'Bodyweight / Barbell Squat',
+    subtitle: 'Kropsvægt / Vægtstang på ryg',
     category: 'legs',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Knee Flexion (≤88°)', 'ROM Dispersion (±σ)', 'Late Decay', 'Rep Count'],
+    keyMetrics: ['Knæbøjning (Dybde ≤88°)', 'Ensartethed (±σ)', 'Træthedstab', 'Gentagelser'],
     status: 'ACTIVE',
     tier: 'TIER_A_VERIFIED'
   },
   legPress: {
     id: 'legPress',
-    name: 'Leg Press Machine',
-    subtitle: '45° / Horizontal Leg Press',
+    name: 'Benpres Maskine',
+    subtitle: '45° / Vandret benpres',
     category: 'legs',
     recommendedView: 'side',
     supportedViews: ['side', 'front45'],
-    keyMetrics: ['Knee Flexion Depth', 'Cadence Stability', 'Tempo', 'Rep Count'],
+    keyMetrics: ['Knæbøjning / Dybde', 'Slædestabilitet', 'Tempo', 'Gentagelser'],
     status: 'ACTIVE',
     tier: 'TIER_A_VERIFIED'
   },
   shoulderPress: {
     id: 'shoulderPress',
-    name: 'Shoulder Press',
-    subtitle: 'Overhead Press',
+    name: 'Skulderpres',
+    subtitle: 'Overhead press / Håndvægte',
     category: 'push',
     recommendedView: 'front',
     supportedViews: ['front', 'front45', 'side'],
-    keyMetrics: ['Overhead Lockout (≥165°)', 'Bilateral Asymmetry (|L-R|)', 'Tempo', 'Rep Count'],
+    keyMetrics: ['Topstræk (≥165°)', 'Højre/Venstre Balance', 'Tempo', 'Gentagelser'],
     status: 'ACTIVE',
     tier: 'TIER_A_VERIFIED'
   }

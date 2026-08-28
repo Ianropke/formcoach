@@ -31,18 +31,18 @@ export class CameraQualityGate {
       const hasKnee = (joints.left_knee?.score ?? 0) > 0.60 || (joints.right_knee?.score ?? 0) > 0.60;
       const hasAnkle = (joints.left_ankle?.score ?? 0) > 0.55 || (joints.right_ankle?.score ?? 0) > 0.55;
       hasRequiredJoints = hasHip && hasKnee && hasAnkle;
-      if (!hasAnkle) missingJointName = 'feet and ankles';
-      else if (!hasKnee) missingJointName = 'knees';
-      else if (!hasHip) missingJointName = 'hips';
+      if (!hasAnkle) missingJointName = 'fødder og ankler';
+      else if (!hasKnee) missingJointName = 'knæ';
+      else if (!hasHip) missingJointName = 'hofter';
     } else {
       // Upper body exercises (Bicep Curls, Triceps Pushdown, Shoulder Press)
       const hasShoulder = (joints.left_shoulder?.score ?? 0) > 0.60 || (joints.right_shoulder?.score ?? 0) > 0.60;
       const hasElbow = (joints.left_elbow?.score ?? 0) > 0.60 || (joints.right_elbow?.score ?? 0) > 0.60;
       const hasWrist = (joints.left_wrist?.score ?? 0) > 0.55 || (joints.right_wrist?.score ?? 0) > 0.55;
       hasRequiredJoints = hasShoulder && hasElbow && hasWrist;
-      if (!hasWrist) missingJointName = 'hands and wrists';
-      else if (!hasElbow) missingJointName = 'elbows';
-      else if (!hasShoulder) missingJointName = 'shoulders';
+      if (!hasWrist) missingJointName = 'hænder og håndled';
+      else if (!hasElbow) missingJointName = 'albuer';
+      else if (!hasShoulder) missingJointName = 'skuldre';
     }
 
     // 2. Clear View Gate (Confidence)
@@ -66,15 +66,15 @@ export class CameraQualityGate {
     const isOptimalScale = bodyHeightSpan >= 0.28 && bodyHeightSpan <= 0.90;
 
     // Determine Actionable Guidance Message
-    let message = 'Ready to record!';
+    let message = 'Klar til optagelse!';
     if (!hasRequiredJoints) {
-      message = `Step back so your ${missingJointName} are visible`;
+      message = `Træd lidt tilbage, så dine ${missingJointName} er synlige`;
     } else if (bodyHeightSpan < 0.28) {
-      message = 'Step closer to the camera';
+      message = 'Træd lidt tættere på kameraet';
     } else if (bodyHeightSpan > 0.90) {
-      message = 'Step back slightly for full clearance';
+      message = 'Træd lidt tilbage for fuld kropshøjde';
     } else if (!clearView) {
-      message = 'Ensure good lighting on your workout area';
+      message = 'Sørg for god belysning i dit træningsområde';
     }
 
     const isReady = hasRequiredJoints && clearView && isOptimalScale;

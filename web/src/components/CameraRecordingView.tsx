@@ -44,7 +44,7 @@ export const CameraRecordingView: React.FC<Props> = ({
     fullBody: false,
     clearView: false,
     optimalScale: false,
-    guidanceMessage: 'Initializing camera & pose engine…'
+    guidanceMessage: 'Indlæser kamera og synsmotor…'
   });
 
   const recordedFramesRef = useRef<PoseFrame[]>([]);
@@ -81,12 +81,13 @@ export const CameraRecordingView: React.FC<Props> = ({
           oldStream.getTracks().forEach(t => t.stop());
         }
 
-        // Open iPhone camera via getUserMedia
+        // Open camera via getUserMedia with iPhone 60fps/1080p high-performance profile
         stream = await navigator.mediaDevices.getUserMedia({
           video: {
             facingMode,
-            width: { ideal: 1280 },
-            height: { ideal: 720 }
+            width: { ideal: 1920, min: 1280 },
+            height: { ideal: 1080, min: 720 },
+            frameRate: { ideal: 60, min: 30 }
           },
           audio: false
         });
@@ -157,6 +158,11 @@ export const CameraRecordingView: React.FC<Props> = ({
                 confidence: rawPose.confidence
               };
               recordedFramesRef.current.push(recordedFrame);
+
+              // Buffer Overflow Safety Guard: Auto-stop after 180s (3 minutes)
+              if (recordedFramesRef.current.length > 10800) {
+                handleStopRecording();
+              }
             }
           } else {
             setLiveAngle(null);
@@ -165,7 +171,7 @@ export const CameraRecordingView: React.FC<Props> = ({
               fullBody: false,
               clearView: false,
               optimalScale: false,
-              guidanceMessage: 'No person detected in frame. Step into camera view.'
+              guidanceMessage: 'Ingen person i billedet. Stil dig foran kameraet.'
             });
           }
         }
@@ -187,7 +193,12 @@ export const CameraRecordingView: React.FC<Props> = ({
     if (phase === 'recording') {
       startTimeRef.current = Date.now();
       interval = setInterval(() => {
-        setElapsedTime((Date.now() - startTimeRef.current) / 1000);
+        const elapsed = (Date.now() - startTimeRef.current) / 1000;
+        setElapsedTime(elapsed);
+        // Safety Auto-stop after 180s
+        if (elapsed >= 180) {
+          handleStopRecording();
+        }
       }, 100);
     }
     return () => clearInterval(interval);
@@ -264,7 +275,30 @@ export const CameraRecordingView: React.FC<Props> = ({
         className="absolute inset-0 w-full h-full object-cover"
       />
 
-      {/* 2. Genuine Skeleton Canvas Overlay */}
+      {/* 2. Visual Silhouette Framing Guide (Shown during setup) */}
+      {phase === 'setup' && (
+        <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-25">
+          <svg viewBox="0 0 200 400" className="h-[75%] max-w-[280px] stroke-white stroke-[2] fill-none stroke-dasharray-[6,6]">
+            {/* Head */}
+            <circle cx="100" cy="50" r="22" />
+            {/* Torso & Shoulders */}
+            <line x1="70" y1="85" x2="130" y2="85" />
+            <line x1="100" y1="72" x2="100" y2="210" />
+            {/* Arms */}
+            <line x1="70" y1="85" x2="55" y2="150" />
+            <line x1="130" y1="85" x2="145" y2="150" />
+            {/* Hips */}
+            <line x1="75" y1="210" x2="125" y2="210" />
+            {/* Legs */}
+            <line x1="80" y1="210" x2="75" y2="300" />
+            <line x1="75" y1="300" x2="70" y2="380" />
+            <line x1="120" y1="210" x2="125" y2="300" />
+            <line x1="125" y1="300" x2="130" y2="380" />
+          </svg>
+        </div>
+      )}
+
+      {/* 3. Genuine Skeleton Canvas Overlay */}
       <canvas
         ref={canvasRef}
         className="absolute inset-0 w-full h-full pointer-events-none"
@@ -289,7 +323,7 @@ export const CameraRecordingView: React.FC<Props> = ({
         <div className="flex items-center gap-2">
           <button
             onClick={() => setShowTelemetry(prev => !prev)}
-            title="Toggle Performance Telemetry"
+            title="Telemetri & Ydeevne"
             className={`p-2.5 rounded-full backdrop-blur-md border transition-colors ${
               showTelemetry
                 ? 'bg-[#00E676] text-black border-[#00E676]'
@@ -307,7 +341,7 @@ export const CameraRecordingView: React.FC<Props> = ({
           ) : (
             <button
               onClick={() => setFacingMode(prev => prev === 'environment' ? 'user' : 'environment')}
-              title="Flip Camera (Front/Rear)"
+              title="Skift Kamera (For/Bag)"
               className="p-2.5 rounded-full bg-black/60 backdrop-blur-md text-white border border-white/10 hover:bg-neutral-800 transition-colors"
             >
               <SwitchCamera className="w-5 h-5 text-[#00E676]" />
@@ -324,15 +358,15 @@ export const CameraRecordingView: React.FC<Props> = ({
             <span className="font-bold text-[#00E676]">{telemetry.inferenceFPS} FPS</span>
           </div>
           <div>
-            <span className="text-neutral-400 text-[10px] block">CAMERA SENSOR</span>
+            <span className="text-neutral-400 text-[10px] block">KAMERASENSOR</span>
             <span className="font-bold text-white">{telemetry.cameraFPS} FPS</span>
           </div>
           <div>
-            <span className="text-neutral-400 text-[10px] block">LATENCY (MED / P95)</span>
+            <span className="text-neutral-400 text-[10px] block">LATENS (MED / P95)</span>
             <span className="font-bold text-white">{telemetry.medianLatencyMs}ms / {telemetry.p95LatencyMs}ms</span>
           </div>
           <div>
-            <span className="text-neutral-400 text-[10px] block">FRAME DROPS</span>
+            <span className="text-neutral-400 text-[10px] block">TABTE FRAMES</span>
             <span className={`font-bold ${telemetry.droppedFrames > 0 ? 'text-amber-400' : 'text-[#00E676]'}`}>{telemetry.droppedFrames}</span>
           </div>
         </div>
@@ -347,10 +381,10 @@ export const CameraRecordingView: React.FC<Props> = ({
                 {liveAngle}°
               </div>
             ) : (
-              <div className="text-xs font-bold text-neutral-400">Tracking pose…</div>
+              <div className="text-xs font-bold text-neutral-400">Sporer kropsposition…</div>
             )}
             <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-              Live Joint Angle
+              Aktiv Ledvinkel
             </div>
           </div>
         )}
@@ -359,7 +393,7 @@ export const CameraRecordingView: React.FC<Props> = ({
         {phase === 'countdown' && (
           <div className="flex flex-col items-center justify-center animate-bounce">
             <div className="text-8xl font-black text-[#00E676] drop-shadow-2xl">{countdown}</div>
-            <div className="text-sm font-bold text-white uppercase tracking-widest mt-2">Get in Position</div>
+            <div className="text-sm font-bold text-white uppercase tracking-widest mt-2">Gør dig klar</div>
           </div>
         )}
 
@@ -367,7 +401,7 @@ export const CameraRecordingView: React.FC<Props> = ({
         {phase === 'analyzing' && (
           <div className="flex flex-col items-center gap-3 bg-black/80 backdrop-blur-md px-8 py-6 rounded-2xl border border-[#00E676]/30">
             <div className="w-10 h-10 border-4 border-[#00E676] border-t-transparent rounded-full animate-spin" />
-            <div className="text-sm font-bold text-white">Segmenting Repetitions…</div>
+            <div className="text-sm font-bold text-white">Analyserer gentagelser…</div>
           </div>
         )}
 
@@ -375,16 +409,16 @@ export const CameraRecordingView: React.FC<Props> = ({
         {phase === 'insufficient' && (
           <div className="p-6 mx-4 bg-neutral-950/95 backdrop-blur-xl rounded-3xl border border-red-500/30 text-center max-w-sm">
             <XCircle className="w-12 h-12 text-red-500 mx-auto mb-2" />
-            <div className="text-lg font-black text-white">No Repetitions Detected</div>
+            <div className="text-lg font-black text-white">Ingen gentagelser registreret</div>
             <p className="text-xs text-neutral-300 mt-2 mb-4 leading-relaxed">
-              Could not segment complete repetitions with sufficient joint confidence. Please place your phone ~1.5m away so your full body is visible.
+              Kunne ikke opdele gentagelser med tilstrækkelig ledsynlighed. Placér telefonen ca. 1.5–2 meter væk i hoftehøjde.
             </p>
             <button
               onClick={() => setPhase('setup')}
               className="w-full bg-[#00E676] hover:bg-[#00E676]/90 text-black font-extrabold text-sm py-3.5 rounded-2xl flex items-center justify-center gap-2"
             >
               <RefreshCw className="w-4 h-4" />
-              <span>Retry Camera Setup</span>
+              <span>Prøv kameraindstilling igen</span>
             </button>
           </div>
         )}
@@ -398,15 +432,15 @@ export const CameraRecordingView: React.FC<Props> = ({
             <div className="flex items-center justify-around bg-neutral-900/80 backdrop-blur-md p-3 rounded-2xl border border-white/10 text-xs font-bold">
               <div className={`flex items-center gap-1.5 ${qualityGate.fullBody ? 'text-[#00E676]' : 'text-neutral-500'}`}>
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Full Body</span>
+                <span>Fuld Krop</span>
               </div>
               <div className={`flex items-center gap-1.5 ${qualityGate.clearView ? 'text-[#00E676]' : 'text-neutral-500'}`}>
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Clear View</span>
+                <span>Klart Udsyn</span>
               </div>
               <div className={`flex items-center gap-1.5 ${qualityGate.optimalScale ? 'text-[#00E676]' : 'text-neutral-500'}`}>
                 <CheckCircle2 className="w-4 h-4" />
-                <span>Optimal Scale</span>
+                <span>God Afstand</span>
               </div>
             </div>
 
@@ -425,7 +459,7 @@ export const CameraRecordingView: React.FC<Props> = ({
                   : 'bg-neutral-800 text-neutral-500 cursor-not-allowed'
               }`}
             >
-              Start Countdown (3s)
+              Start Nedtælling (3s)
             </button>
           </div>
         )}
@@ -437,7 +471,7 @@ export const CameraRecordingView: React.FC<Props> = ({
               className="w-full bg-red-600 hover:bg-red-700 text-white font-extrabold text-lg py-4 rounded-2xl flex items-center justify-center gap-2 shadow-xl shadow-red-600/40 active:scale-[0.98] transition-transform"
             >
               <Square className="w-5 h-5 fill-current" />
-              <span>STOP RECORDING</span>
+              <span>STOP OPTAGELSE</span>
             </button>
           </div>
         )}
@@ -445,7 +479,7 @@ export const CameraRecordingView: React.FC<Props> = ({
         {hasCameraAccess === false && (
           <div className="p-4 bg-red-950/80 border border-red-500/30 rounded-2xl text-center text-xs text-red-300">
             <AlertCircle className="w-6 h-6 mx-auto mb-1 text-red-400" />
-            Camera access is required. Please grant permission in Safari settings.
+            Kameraadgang er påkrævet. Tillad venligst kamera i Safari indstillinger.
           </div>
         )}
       </div>

@@ -29,6 +29,7 @@ export default function App() {
         if (detail.set) setCurrentResultSet(detail.set);
         if (detail.sessionSets) setActiveSessionSets(detail.sessionSets);
         setActiveFlow(detail.flow);
+        setCurrentTab('workout');
       }
     };
     window.addEventListener('formcoach_test_flow' as any, handleTestFlow);
@@ -130,7 +131,7 @@ export default function App() {
             }`}
           >
             <Dumbbell className="w-5 h-5" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Routine</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Træning</span>
           </button>
 
           <button
@@ -140,7 +141,7 @@ export default function App() {
             }`}
           >
             <Activity className="w-5 h-5" />
-            <span className="text-[10px] font-bold uppercase tracking-wider">Baselines</span>
+            <span className="text-[10px] font-bold uppercase tracking-wider">Formkurve</span>
           </button>
         </div>
       )}

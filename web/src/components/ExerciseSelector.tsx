@@ -27,7 +27,7 @@ export const ExerciseSelector: React.FC<Props> = ({ onStartExercise }) => {
       {/* Brand Header */}
       <div className="mb-3">
         <div className="text-xs font-extrabold tracking-widest text-[#00E676] uppercase">FORMCOACH</div>
-        <h1 className="text-2xl font-black tracking-tight text-white">My Gym Routine</h1>
+        <h1 className="text-2xl font-black tracking-tight text-white">Dagens Træning</h1>
       </div>
 
       {/* Category Pills */}
@@ -38,7 +38,7 @@ export const ExerciseSelector: React.FC<Props> = ({ onStartExercise }) => {
             selectedCategory === 'all' ? 'bg-[#00E676] text-black shadow-lg shadow-[#00E676]/20' : 'bg-neutral-900 text-neutral-300'
           }`}
         >
-          All (5)
+          Alle (5)
         </button>
         {EXERCISE_CATEGORIES.map(cat => (
           <button
@@ -74,8 +74,8 @@ export const ExerciseSelector: React.FC<Props> = ({ onStartExercise }) => {
                   <div className="text-xs font-medium text-neutral-400">{ex.subtitle}</div>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="bg-[#00E676] text-black text-[10px] font-black px-2 py-0.5 rounded-md">
-                    VERIFIED
+                  <span className="bg-[#00E676] text-black text-[10px] font-black px-2 py-0.5 rounded-md uppercase tracking-wider">
+                    Kamera-Klar
                   </span>
                   <ChevronRight className={`w-4 h-4 ${isSelected ? 'text-[#00E676]' : 'text-neutral-600'}`} />
                 </div>
@@ -97,7 +97,7 @@ export const ExerciseSelector: React.FC<Props> = ({ onStartExercise }) => {
       {/* Camera View Angle Selector */}
       <div className="mt-3 pt-3 border-t border-white/10">
         <div className="text-[11px] font-bold uppercase tracking-wider text-neutral-400 mb-2">
-          Recommended Camera Angle
+          Anbefalet Kameravinkel
         </div>
         <div className="flex gap-2">
           {currentExerciseDef.supportedViews.map(view => (
@@ -110,7 +110,7 @@ export const ExerciseSelector: React.FC<Props> = ({ onStartExercise }) => {
                   : 'bg-neutral-900 text-neutral-300'
               }`}
             >
-              {view === 'side' ? 'Side View' : view === 'front' ? 'Front View' : '45° Front'}
+              {view === 'side' ? 'Sideprofil' : view === 'front' ? 'Frontal' : '45° Skrå'}
             </button>
           ))}
         </div>
@@ -122,7 +122,7 @@ export const ExerciseSelector: React.FC<Props> = ({ onStartExercise }) => {
         className="mt-4 w-full bg-[#00E676] hover:bg-[#00E676]/90 text-black font-extrabold text-base py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#00E676]/30 active:scale-[0.98] transition-transform"
       >
         <Camera className="w-5 h-5" />
-        <span>Setup {currentExerciseDef.name} Camera</span>
+        <span>Indstil Kamera til {currentExerciseDef.name}</span>
       </button>
     </div>
   );

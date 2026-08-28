@@ -2,6 +2,10 @@
 
 This document governs the engineering standards, architectural invariants, and constraints that **ALL AI agents and contributors MUST follow** when modifying the FormCoach codebase.
 
+## 0. Working Mode
+
+Default to `ONE BUILDER → IMPLEMENT → TARGETED TEST → RELEVANT BUILD/SUITE → STOP`. Use minimal reads and no subagent/full-repository review by default. Changes to pose analysis, privacy, storage, camera gating, or release behavior are high risk and receive deeper validation plus a separate skeptical gate. Stop when acceptance criteria and relevant checks pass.
+
 ---
 
 ## 1. Absolute Epistemic & Architectural Invariants (Non-Negotiable)
@@ -39,7 +43,7 @@ This document governs the engineering standards, architectural invariants, and c
 
 ## 2. Engineering Quality & Verification Gates
 
-Every code change must pass the following quality gates before submission:
+Select gates by the changed surface. During development run the narrowest relevant test; at completion run the relevant build/suite. Run every gate only for broad changes, release work, or when the affected contract requires it:
 1. **Unit & Mathematical Regression Testing:** `npm test` runs the deterministic biomechanics test suite (`src/tests/testSuite.ts` & `src/tests/goldenDataset.ts`) covering vector geometry, state machines, fatigue detection, and baselines on synthetic frames.
 2. **Build Validation:** `npm run build` (`tsc -b && vite build`) passes with 0 type errors.
 3. **Zero Console Errors:** Automated headless browser inspection must verify 0 console errors, 0 page errors, and valid PWA assets (192x192, 512x512 icons, manifest, service worker).
@@ -66,6 +70,7 @@ All contributors and AI agents must strictly adhere to the 3-Tier Evidence Hiera
 
 ### 3.1 The Builder vs. Skeptic Rule
 - **Agent Role (Builder):** The agent builds, refactors, secures, and runs Tier 1 & Tier 2 checks.
+- **Separate Gate:** Skeptical review and Tier 3 field validation happen after a coherent builder result when risk or acceptance requires them; they are not repeated inside the builder loop.
 - **Language Prohibition:** Agents are **STRICTLY PROHIBITED** from using phrases such as *"validated"*, *"production-ready"*, *"works reliably in real life"*, or *"ingen kode-genveje tilbage"* solely on the basis of Tier 1 & Tier 2 tests.
 - **Permitted Phrasing:** Agents MUST state precisely what was tested: e.g. *"17/17 deterministic regression tests pass on synthetic vector inputs. Real-world vision accuracy remains unvalidated pending Tier 3 field testing."*
 
@@ -84,4 +89,3 @@ When field-testing in reality, execute these 6 standardized recording sets:
 Field metrics must report:
 - **Rep Count Mean Absolute Error:** $\text{MAE} = \frac{1}{n}\sum |\text{FormCoach reps} - \text{actual reps}|$
 - **Flaw Detection Sensitivity & Specificity** relative to self-annotated ground truth.
-
