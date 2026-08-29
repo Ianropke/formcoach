@@ -49,6 +49,33 @@ function getJointAngle(
 }
 
 /**
+ * Automatically evaluates both Left and Right limb kinematics and selects the dominant limb
+ * with higher visibility confidence to handle equipment or partial occlusion seamlessly.
+ */
+function getDominantLimbAngle(
+  f: PoseFrame,
+  leftJoints: [JointName, JointName, JointName],
+  rightJoints: [JointName, JointName, JointName]
+): number | null {
+  const joints = f.worldJoints || f.joints;
+  const [lA, lB, lC] = leftJoints;
+  const [rA, rB, rC] = rightJoints;
+
+  const scoreLeft = ((joints[lA]?.score ?? 0) + (joints[lB]?.score ?? 0) + (joints[lC]?.score ?? 0)) / 3;
+  const scoreRight = ((joints[rA]?.score ?? 0) + (joints[rB]?.score ?? 0) + (joints[rC]?.score ?? 0)) / 3;
+
+  if (scoreLeft >= scoreRight && scoreLeft > 0.4) {
+    const angle = getJointAngle(f, lA, lB, lC);
+    if (angle !== null) return angle;
+  }
+  if (scoreRight > 0.4) {
+    const angle = getJointAngle(f, rA, rB, rC);
+    if (angle !== null) return angle;
+  }
+  return getJointAngle(f, lA, lB, lC);
+}
+
+/**
  * Parabolic Sub-Frame Vertex Estimation:
  * Fits a 2nd-degree parabola through 3 consecutive samples (y_prev, y_mid, y_next)
  * around an inflection turnaround to estimate the true minimum/maximum vertex
@@ -113,8 +140,11 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
 
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i];
-      const kneeAngle = getJointAngle(f, 'left_hip', 'left_knee', 'left_ankle') ??
-                        getJointAngle(f, 'right_hip', 'right_knee', 'right_ankle');
+      const kneeAngle = getDominantLimbAngle(
+        f,
+        ['left_hip', 'left_knee', 'left_ankle'],
+        ['right_hip', 'right_knee', 'right_ankle']
+      );
       if (kneeAngle === null) continue;
 
       const t = f.timestamp;
@@ -318,12 +348,18 @@ export class BicepCurlAnalyzer implements ExerciseAnalyzer {
 
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i];
-      const elbowAngle = getJointAngle(f, 'left_shoulder', 'left_elbow', 'left_wrist') ??
-                         getJointAngle(f, 'right_shoulder', 'right_elbow', 'right_wrist');
+      const elbowAngle = getDominantLimbAngle(
+        f,
+        ['left_shoulder', 'left_elbow', 'left_wrist'],
+        ['right_shoulder', 'right_elbow', 'right_wrist']
+      );
       if (elbowAngle === null) continue;
 
-      const currentShoulderAngle = getJointAngle(f, 'left_hip', 'left_shoulder', 'left_elbow') ??
-                                   getJointAngle(f, 'right_hip', 'right_shoulder', 'right_elbow') ?? 0;
+      const currentShoulderAngle = getDominantLimbAngle(
+        f,
+        ['left_hip', 'left_shoulder', 'left_elbow'],
+        ['right_hip', 'right_shoulder', 'right_elbow']
+      ) ?? 0;
       const t = f.timestamp;
 
       if (state === 'lockout' && elbowAngle < 140) {
@@ -469,12 +505,18 @@ export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
 
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i];
-      const elbowAngle = getJointAngle(f, 'left_shoulder', 'left_elbow', 'left_wrist') ??
-                         getJointAngle(f, 'right_shoulder', 'right_elbow', 'right_wrist');
+      const elbowAngle = getDominantLimbAngle(
+        f,
+        ['left_shoulder', 'left_elbow', 'left_wrist'],
+        ['right_shoulder', 'right_elbow', 'right_wrist']
+      );
       if (elbowAngle === null) continue;
 
-      const currentShoulderAngle = getJointAngle(f, 'left_hip', 'left_shoulder', 'left_elbow') ??
-                                   getJointAngle(f, 'right_hip', 'right_shoulder', 'right_elbow') ?? 0;
+      const currentShoulderAngle = getDominantLimbAngle(
+        f,
+        ['left_hip', 'left_shoulder', 'left_elbow'],
+        ['right_hip', 'right_shoulder', 'right_elbow']
+      ) ?? 0;
       const t = f.timestamp;
 
       if (state === 'flexed' && elbowAngle > 95) {

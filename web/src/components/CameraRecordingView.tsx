@@ -26,6 +26,7 @@ export const CameraRecordingView: React.FC<Props> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
+  const [zoomLevel, setZoomLevel] = useState<0.5 | 1 | 2>(1);
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [telemetry, setTelemetry] = useState<CameraTelemetry>({
@@ -57,6 +58,28 @@ export const CameraRecordingView: React.FC<Props> = ({
   const videoChunksRef = useRef<Blob[]>([]);
   const depthMilestoneTriggeredRef = useRef<boolean>(false);
   const liveRepCountRef = useRef<number>(0);
+
+  // Dynamic Lens / Hardware Zoom Switching
+  const handleZoomChange = async (level: 0.5 | 1 | 2) => {
+    setZoomLevel(level);
+    if (videoRef.current && videoRef.current.srcObject) {
+      const stream = videoRef.current.srcObject as MediaStream;
+      const track = stream.getVideoTracks()[0];
+      if (track) {
+        try {
+          const capabilities: any = (track as any).getCapabilities ? (track as any).getCapabilities() : {};
+          if (capabilities.zoom) {
+            const targetZoom = level === 0.5 ? Math.max(capabilities.zoom.min || 1, 0.5) : level === 2 ? Math.min(capabilities.zoom.max || 2, 2) : 1;
+            await (track as any).applyConstraints({
+              advanced: [{ zoom: targetZoom }]
+            });
+          }
+        } catch (e) {
+          console.warn('Hardware zoom adjustment bypassed:', e);
+        }
+      }
+    }
+  };
 
   // Telemetry polling interval
   useEffect(() => {
@@ -425,6 +448,23 @@ export const CameraRecordingView: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          {/* Ultra-Wide (0.5x) / Zoom Pill */}
+          <div className="flex items-center bg-black/60 backdrop-blur-md rounded-xl p-0.5 border border-white/10 text-[11px] font-black">
+            {([0.5, 1, 2] as const).map(level => (
+              <button
+                key={level}
+                onClick={() => handleZoomChange(level)}
+                className={`px-2.5 py-1 rounded-lg transition-colors ${
+                  zoomLevel === level
+                    ? 'bg-[#00E676] text-black shadow-xs'
+                    : 'text-neutral-400 hover:text-white'
+                }`}
+              >
+                {level}x
+              </button>
+            ))}
+          </div>
+
           <button
             onClick={() => {
               const next = !isMuted;
@@ -561,6 +601,18 @@ export const CameraRecordingView: React.FC<Props> = ({
               <div className={`flex items-center gap-1.5 ${qualityGate.optimalScale ? 'text-[#00E676]' : 'text-neutral-500'}`}>
                 <CheckCircle2 className="w-4 h-4" />
                 <span>God Afstand</span>
+              </div>
+            </div>
+
+            {/* Live Camera Angle & Placement Calibration Badge */}
+            <div className="flex items-center justify-center gap-2 text-[11px] font-mono font-bold text-neutral-300">
+              <div className="px-2.5 py-1 bg-neutral-900/90 backdrop-blur-md rounded-xl border border-white/10 flex items-center gap-1.5 shadow-xs">
+                <span className="text-[#00E676]">📐</span>
+                <span>{qualityGate.detectedProfile === 'side' ? 'Sideprofil' : qualityGate.detectedProfile === 'front45' ? '45° Skrå' : 'Frontal'}</span>
+              </div>
+              <div className="px-2.5 py-1 bg-neutral-900/90 backdrop-blur-md rounded-xl border border-white/10 flex items-center gap-1.5 shadow-xs">
+                <span className="text-[#00E676]">📱</span>
+                <span>{qualityGate.isFloorPlacement ? `Gulvvinkel (+${qualityGate.pitchAngleDeg || 15}°)` : 'Vandret (0°)'}</span>
               </div>
             </div>
 

@@ -1,4 +1,5 @@
 import { AngleCalculator } from '../core/angleCalculator';
+import { CameraCalibrator } from '../core/cameraCalibrator';
 import { PoseSmoother } from '../core/poseSmoother';
 import { SquatAnalyzer, BicepCurlAnalyzer, TricepsPushdownAnalyzer, ShoulderPressAnalyzer, LegPressAnalyzer } from '../core/analyzers/exerciseAnalyzers';
 import { CrossSetFatigueAnalyzer } from '../core/fatigueAnalyzer';
@@ -51,7 +52,50 @@ const pStraight = { x: 0.0, y: -1.0, score: 1.0 };
 const angle180 = AngleCalculator.angle2D(pA, pB, pStraight);
 assert('AngleCalculator: Straight Line 180° Angle', Math.abs(angle180 - 180.0) < 0.001);
 
-// 3. PoseSmoother: Drop-out interpolation
+// 5. CameraCalibrator: Level Camera Angle (Chest Height)
+const levelFrame: PoseFrame = {
+  timestamp: 0,
+  confidence: 0.9,
+  joints: {},
+  worldJoints: {
+    left_shoulder: { x: 0.0, y: 0.8, z: 0.0, score: 1.0 },
+    right_shoulder: { x: 0.0, y: 0.8, z: 0.0, score: 1.0 },
+    left_hip: { x: 0.0, y: 0.0, z: 0.0, score: 1.0 },
+    right_hip: { x: 0.0, y: 0.0, z: 0.0, score: 1.0 }
+  }
+};
+const calibLevel = CameraCalibrator.calibrate(levelFrame);
+assert('CameraCalibrator: Level Camera Pitch (~0°)', Math.abs(calibLevel.pitchAngleDeg) <= 2 && !calibLevel.isFloorPlacement);
+
+// 6. CameraCalibrator: Floor Placement Upward Tilt (+22°)
+const floorFrame: PoseFrame = {
+  timestamp: 0,
+  confidence: 0.9,
+  joints: {},
+  worldJoints: {
+    left_shoulder: { x: 0.0, y: 0.8, z: 0.35, score: 1.0 },
+    right_shoulder: { x: 0.0, y: 0.8, z: 0.35, score: 1.0 },
+    left_hip: { x: 0.0, y: 0.0, z: 0.0, score: 1.0 },
+    right_hip: { x: 0.0, y: 0.0, z: 0.0, score: 1.0 }
+  }
+};
+const calibFloor = CameraCalibrator.calibrate(floorFrame);
+assert('CameraCalibrator: Floor Placement Upward Tilt Detected (>=15°)', calibFloor.pitchAngleDeg >= 15 && calibFloor.isFloorPlacement);
+
+// 7. CameraCalibrator: Profile Yaw Classification (Side vs Front)
+const sideProfileFrame: PoseFrame = {
+  timestamp: 0,
+  confidence: 0.9,
+  joints: {},
+  worldJoints: {
+    left_hip: { x: 0.0, y: 0.0, z: -0.2, score: 1.0 },
+    right_hip: { x: 0.0, y: 0.0, z: 0.2, score: 1.0 }
+  }
+};
+const calibSide = CameraCalibrator.calibrate(sideProfileFrame);
+assert('CameraCalibrator: Strict Side Profile Auto-Detected', calibSide.detectedProfile === 'side');
+
+// 8. PoseSmoother: Drop-out interpolation
 const smoother = new PoseSmoother();
 const testFrames: PoseFrame[] = [
   { timestamp: 0.0, joints: { left_hip: { x: 0.5, y: 0.5, score: 1.0 } }, confidence: 1.0 },
