@@ -39,6 +39,23 @@ Default to `ONE BUILDER → IMPLEMENT → TARGETED TEST → RELEVANT BUILD/SUITE
 - **Kinematic Descriptions Only:** Form feedback MUST be descriptive and biomechanical (e.g. *"Knee flexion angle decreased by 12°"* or *"Shoulder drift detected"*).
 - **Zero Pathology Claims:** NEVER claim injury diagnosis, pain causality, joint safety pathology, or medical guarantees.
 
+### 1.7 Real-Time Web Audio & Earbud Feedback
+- **Zero-Latency Sound Cues:** Web Audio API tone synthesis MUST be used for instantaneous depth/ROM milestone chimes ($\le 88^\circ$) to eliminate screen-watching during lifts.
+- **Danish Speech Synthesis:** Web Speech API provides Danish rep counts and set completion announcements without network dependencies.
+- **Gesture Audio Unlock:** Audio context MUST be initialized and unlocked during explicit user interaction (e.g., countdown start).
+
+### 1.8 3D World Landmark Metric Invariance
+- **Metric 3D Geometry:** Joint kinematics MUST prioritize MediaPipe `worldLandmarks` ($x, y, z$ in meters) via $\arccos\frac{\vec{u}\cdot\vec{v}}{\|\vec{u}\|\|\vec{v}\|}$ to remain mathematically invariant to camera pitch and perspective skew.
+- **Profile & Dominant Limb Selection:** Analyzers must auto-select the dominant limb with highest confidence to withstand equipment occlusion.
+
+### 1.9 In-Memory Video Replay & Zero-Leak Memory Safety
+- **RAM-Only Temporary Blobs:** Workout video recordings are stored as ephemeral in-memory Blobs for immediate rep-scrubbing ($0.75\times$ slowmotion).
+- **Mandatory Buffer Revocation:** All video Object URLs MUST be immediately revoked (`URL.revokeObjectURL`) upon set discard or session completion to prevent memory leaks on mobile devices.
+
+### 1.10 Adaptive Camera Flexibility & Auto-Calibration
+- **0.5x Ultra-Wide & Zoom:** Camera stream supports dynamic 0.5x ultra-wide lens selection for full-body tracking at 1.2m distance in compact gym areas.
+- **Floor-Placement Auto-Calibration:** When the phone is placed on the floor leaning at $+15^\circ$ to $+35^\circ$, `CameraCalibrator` dynamically detects pitch and calibrates references to the athlete's gravitational vertical axis.
+
 ---
 
 ## 2. Engineering Quality & Verification Gates
