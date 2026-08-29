@@ -36,10 +36,10 @@ export class PoseLandmarkerService {
           delegate: 'GPU'
         },
         runningMode: 'VIDEO',
-        numPoses: 1,
-        minPoseDetectionConfidence: 0.6,
-        minPosePresenceConfidence: 0.6,
-        minTrackingConfidence: 0.6
+        numPoses: 2,
+        minPoseDetectionConfidence: 0.55,
+        minPosePresenceConfidence: 0.55,
+        minTrackingConfidence: 0.55
       });
 
       console.log('MediaPipe PoseLandmarker initialized from local /wasm assets with GPU delegate! 🚀');
@@ -49,6 +49,12 @@ export class PoseLandmarkerService {
     } finally {
       this.isInitializing = false;
     }
+  }
+
+  private athleteAnchor: { centerX: number; centerY: number; scale: number } | null = null;
+
+  public setAthleteAnchor(anchor: { centerX: number; centerY: number; scale: number } | null): void {
+    this.athleteAnchor = anchor;
   }
 
   public detectForVideo(videoElement: HTMLVideoElement, timestampMs: number): PoseFrame | null {
@@ -68,14 +74,76 @@ export class PoseLandmarkerService {
         return null;
       }
 
-      const rawLandmarks = result.landmarks[0];
-      const rawWorldLandmarks = result.worldLandmarks && result.worldLandmarks.length > 0 ? result.worldLandmarks[0] : undefined;
+      // Multi-Person Discard & Athlete Anchor Selection
+      let bestIdx = 0;
+      if (result.landmarks.length > 1) {
+        if (this.athleteAnchor) {
+          let minDistance = Infinity;
+          for (let i = 0; i < result.landmarks.length; i++) {
+            const bbox = this.computePoseBounds(result.landmarks[i]);
+            const dist = Math.hypot(bbox.centerX - this.athleteAnchor.centerX, bbox.centerY - this.athleteAnchor.centerY) +
+                         Math.abs(bbox.scale - this.athleteAnchor.scale) * 0.5;
+            if (dist < minDistance) {
+              minDistance = dist;
+              bestIdx = i;
+            }
+          }
+        } else {
+          // If no anchor locked yet, select the closest foreground person (largest scale/area)
+          let maxScale = 0;
+          for (let i = 0; i < result.landmarks.length; i++) {
+            const bbox = this.computePoseBounds(result.landmarks[i]);
+            if (bbox.scale > maxScale) {
+              maxScale = bbox.scale;
+              bestIdx = i;
+            }
+          }
+        }
+      }
+
+      const rawLandmarks = result.landmarks[bestIdx];
+      const rawWorldLandmarks = result.worldLandmarks && result.worldLandmarks.length > bestIdx ? result.worldLandmarks[bestIdx] : undefined;
+
+      // Update anchor with exponential smoothing (alpha = 0.2)
+      if (rawLandmarks) {
+        const bounds = this.computePoseBounds(rawLandmarks);
+        if (this.athleteAnchor) {
+          this.athleteAnchor = {
+            centerX: this.athleteAnchor.centerX * 0.8 + bounds.centerX * 0.2,
+            centerY: this.athleteAnchor.centerY * 0.8 + bounds.centerY * 0.2,
+            scale: this.athleteAnchor.scale * 0.8 + bounds.scale * 0.2
+          };
+        }
+      }
+
       return this.mapLandmarksToPoseFrame(rawLandmarks, rawWorldLandmarks, timestampMs / 1000);
     } catch (err) {
       this.droppedFrameCount++;
       console.warn('MediaPipe frame detection error:', err);
       return null;
     }
+  }
+
+  private computePoseBounds(landmarks: NormalizedLandmark[]): { centerX: number; centerY: number; scale: number } {
+    let minX = 1.0;
+    let maxX = 0.0;
+    let minY = 1.0;
+    let maxY = 0.0;
+
+    for (const lm of landmarks) {
+      if (lm.visibility === undefined || lm.visibility > 0.4) {
+        minX = Math.min(minX, lm.x);
+        maxX = Math.max(maxX, lm.x);
+        minY = Math.min(minY, lm.y);
+        maxY = Math.max(maxY, lm.y);
+      }
+    }
+
+    return {
+      centerX: (minX + maxX) / 2,
+      centerY: (minY + maxY) / 2,
+      scale: Math.max(0.01, maxY - minY)
+    };
   }
 
   private recordLatency(ms: number): void {

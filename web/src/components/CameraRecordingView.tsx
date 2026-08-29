@@ -58,6 +58,29 @@ export const CameraRecordingView: React.FC<Props> = ({
   const videoChunksRef = useRef<Blob[]>([]);
   const depthMilestoneTriggeredRef = useRef<boolean>(false);
   const liveRepCountRef = useRef<number>(0);
+  const wakeLockRef = useRef<any>(null);
+  const lastInferenceMsRef = useRef<number>(0);
+  const lastPoseRef = useRef<PoseFrame | null>(null);
+
+  // Screen WakeLock API Guard (Prevents iOS screen sleep during workouts)
+  const requestWakeLock = async () => {
+    if (typeof navigator !== 'undefined' && 'wakeLock' in navigator) {
+      try {
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
+      } catch (e) {
+        console.warn('WakeLock request bypassed:', e);
+      }
+    }
+  };
+
+  const releaseWakeLock = () => {
+    if (wakeLockRef.current) {
+      try {
+        wakeLockRef.current.release();
+        wakeLockRef.current = null;
+      } catch {}
+    }
+  };
 
   // Dynamic Lens / Hardware Zoom Switching
   const handleZoomChange = async (level: 0.5 | 1 | 2) => {
@@ -136,6 +159,8 @@ export const CameraRecordingView: React.FC<Props> = ({
 
     return () => {
       isCancelled = true;
+      releaseWakeLock();
+      PoseLandmarkerService.getInstance().setAthleteAnchor(null);
       if (stream) {
         stream.getTracks().forEach(track => track.stop());
       }
@@ -156,96 +181,107 @@ export const CameraRecordingView: React.FC<Props> = ({
       const canvas = canvasRef.current;
 
       if (video && canvas && video.readyState >= 2) {
-        const timestampMs = performance.now();
-        canvas.width = video.videoWidth || 640;
-        canvas.height = video.videoHeight || 480;
+        const now = performance.now();
 
-        const ctx = canvas.getContext('2d');
-        if (ctx) {
-          ctx.clearRect(0, 0, canvas.width, canvas.height);
+        // Adaptive FPS Thermal Saver: Throttle to ~20 FPS during setup, full speed during recording
+        const isSetupPhase = phase === 'setup';
+        const throttleInterval = isSetupPhase ? 50 : 0; // 50ms = 20 FPS in setup
 
-          // Run genuine MediaPipe Pose Landmarker on video frame
-          const rawPose = landmarkerService.detectForVideo(video, timestampMs);
+        if (now - lastInferenceMsRef.current >= throttleInterval) {
+          lastInferenceMsRef.current = now;
 
-          if (rawPose) {
-            // Evaluate dynamic camera quality gate
-            const quality = CameraQualityGate.evaluateQuality(rawPose, exercise);
-            setQualityGate(quality);
+          canvas.width = video.videoWidth || 640;
+          canvas.height = video.videoHeight || 480;
 
-            // Compute real measured joint angle
-            const angle = computeActiveAngle(rawPose, exercise);
-            if (angle !== null) {
-              setLiveAngle(Math.round(angle));
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
 
-              // Real-Time Audio Cues (Zero-latency depth chimes & live milestone triggers)
-              if (phase === 'recording') {
-                if (exercise === 'squat' || exercise === 'legPress') {
-                  if (angle <= 88 && !depthMilestoneTriggeredRef.current) {
-                    depthMilestoneTriggeredRef.current = true;
-                    AudioCoachService.getInstance().playDepthMilestone();
-                  } else if (angle >= 150 && depthMilestoneTriggeredRef.current) {
-                    depthMilestoneTriggeredRef.current = false;
-                    liveRepCountRef.current++;
-                    AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
-                  }
-                } else if (exercise === 'bicepsCurl') {
-                  if (angle <= 58 && !depthMilestoneTriggeredRef.current) {
-                    depthMilestoneTriggeredRef.current = true;
-                    AudioCoachService.getInstance().playDepthMilestone();
-                  } else if (angle >= 135 && depthMilestoneTriggeredRef.current) {
-                    depthMilestoneTriggeredRef.current = false;
-                    liveRepCountRef.current++;
-                    AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
-                  }
-                } else if (exercise === 'tricepsPushdown') {
-                  if (angle >= 160 && !depthMilestoneTriggeredRef.current) {
-                    depthMilestoneTriggeredRef.current = true;
-                    AudioCoachService.getInstance().playDepthMilestone();
-                  } else if (angle <= 95 && depthMilestoneTriggeredRef.current) {
-                    depthMilestoneTriggeredRef.current = false;
-                    liveRepCountRef.current++;
-                    AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
-                  }
-                } else if (exercise === 'shoulderPress') {
-                  if (angle >= 160 && !depthMilestoneTriggeredRef.current) {
-                    depthMilestoneTriggeredRef.current = true;
-                    AudioCoachService.getInstance().playDepthMilestone();
-                  } else if (angle <= 90 && depthMilestoneTriggeredRef.current) {
-                    depthMilestoneTriggeredRef.current = false;
-                    liveRepCountRef.current++;
-                    AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
+            // Run genuine MediaPipe Pose Landmarker on video frame
+            const rawPose = landmarkerService.detectForVideo(video, now);
+
+            if (rawPose) {
+              lastPoseRef.current = rawPose;
+
+              // Evaluate dynamic camera quality gate
+              const quality = CameraQualityGate.evaluateQuality(rawPose, exercise);
+              setQualityGate(quality);
+
+              // Compute real measured joint angle
+              const angle = computeActiveAngle(rawPose, exercise);
+              if (angle !== null) {
+                setLiveAngle(Math.round(angle));
+
+                // Real-Time Audio Cues (Zero-latency depth chimes & live milestone triggers)
+                if (phase === 'recording') {
+                  if (exercise === 'squat' || exercise === 'legPress') {
+                    if (angle <= 88 && !depthMilestoneTriggeredRef.current) {
+                      depthMilestoneTriggeredRef.current = true;
+                      AudioCoachService.getInstance().playDepthMilestone();
+                    } else if (angle >= 150 && depthMilestoneTriggeredRef.current) {
+                      depthMilestoneTriggeredRef.current = false;
+                      liveRepCountRef.current++;
+                      AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
+                    }
+                  } else if (exercise === 'bicepsCurl') {
+                    if (angle <= 58 && !depthMilestoneTriggeredRef.current) {
+                      depthMilestoneTriggeredRef.current = true;
+                      AudioCoachService.getInstance().playDepthMilestone();
+                    } else if (angle >= 135 && depthMilestoneTriggeredRef.current) {
+                      depthMilestoneTriggeredRef.current = false;
+                      liveRepCountRef.current++;
+                      AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
+                    }
+                  } else if (exercise === 'tricepsPushdown') {
+                    if (angle >= 160 && !depthMilestoneTriggeredRef.current) {
+                      depthMilestoneTriggeredRef.current = true;
+                      AudioCoachService.getInstance().playDepthMilestone();
+                    } else if (angle <= 95 && depthMilestoneTriggeredRef.current) {
+                      depthMilestoneTriggeredRef.current = false;
+                      liveRepCountRef.current++;
+                      AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
+                    }
+                  } else if (exercise === 'shoulderPress') {
+                    if (angle >= 160 && !depthMilestoneTriggeredRef.current) {
+                      depthMilestoneTriggeredRef.current = true;
+                      AudioCoachService.getInstance().playDepthMilestone();
+                    } else if (angle <= 90 && depthMilestoneTriggeredRef.current) {
+                      depthMilestoneTriggeredRef.current = false;
+                      liveRepCountRef.current++;
+                      AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
+                    }
                   }
                 }
               }
-            }
 
-            // Draw genuine detected skeleton
-            drawDetectedSkeleton(ctx, canvas.width, canvas.height, rawPose);
+              // Draw genuine detected skeleton
+              drawDetectedSkeleton(ctx, canvas.width, canvas.height, rawPose);
 
-            // Record frame during recording phase
-            if (phase === 'recording') {
-              const recordedFrame: PoseFrame = {
-                timestamp: (Date.now() - startTimeRef.current) / 1000,
-                joints: rawPose.joints,
-                worldJoints: rawPose.worldJoints,
-                confidence: rawPose.confidence
-              };
-              recordedFramesRef.current.push(recordedFrame);
+              // Record frame during recording phase
+              if (phase === 'recording') {
+                const recordedFrame: PoseFrame = {
+                  timestamp: (Date.now() - startTimeRef.current) / 1000,
+                  joints: rawPose.joints,
+                  worldJoints: rawPose.worldJoints,
+                  confidence: rawPose.confidence
+                };
+                recordedFramesRef.current.push(recordedFrame);
 
-              // Buffer Overflow Safety Guard: Auto-stop after 180s (3 minutes)
-              if (recordedFramesRef.current.length > 10800) {
-                handleStopRecording();
+                // Buffer Overflow Safety Guard: Auto-stop after 180s (3 minutes)
+                if (recordedFramesRef.current.length > 10800) {
+                  handleStopRecording();
+                }
               }
+            } else {
+              setLiveAngle(null);
+              setQualityGate({
+                isReady: false,
+                fullBody: false,
+                clearView: false,
+                optimalScale: false,
+                guidanceMessage: 'Ingen person i billedet. Stil dig foran kameraet.'
+              });
             }
-          } else {
-            setLiveAngle(null);
-            setQualityGate({
-              isReady: false,
-              fullBody: false,
-              clearView: false,
-              optimalScale: false,
-              guidanceMessage: 'Ingen person i billedet. Stil dig foran kameraet.'
-            });
           }
         }
       }
@@ -284,6 +320,32 @@ export const CameraRecordingView: React.FC<Props> = ({
     recordedFramesRef.current = [];
     depthMilestoneTriggeredRef.current = false;
     liveRepCountRef.current = 0;
+
+    // Acquire Screen WakeLock to prevent iPhone sleep during set
+    requestWakeLock();
+
+    // Lock athlete anchor coordinates to prevent multi-person background interference
+    if (lastPoseRef.current) {
+      const joints = lastPoseRef.current.joints;
+      let minX = 1, maxX = 0, minY = 1, maxY = 0, count = 0;
+      for (const k in joints) {
+        const pt = joints[k as keyof typeof joints];
+        if (pt && pt.score > 0.4) {
+          minX = Math.min(minX, pt.x);
+          maxX = Math.max(maxX, pt.x);
+          minY = Math.min(minY, pt.y);
+          maxY = Math.max(maxY, pt.y);
+          count++;
+        }
+      }
+      if (count >= 3) {
+        PoseLandmarkerService.getInstance().setAthleteAnchor({
+          centerX: (minX + maxX) / 2,
+          centerY: (minY + maxY) / 2,
+          scale: Math.max(0.01, maxY - minY)
+        });
+      }
+    }
 
     AudioCoachService.getInstance().unlockAudio();
     AudioCoachService.getInstance().playCountdownBeep(false);
@@ -328,6 +390,8 @@ export const CameraRecordingView: React.FC<Props> = ({
   // Stop Recording and Run Deterministic Biomechanics Pipeline
   const handleStopRecording = () => {
     setPhase('analyzing');
+    releaseWakeLock();
+    PoseLandmarkerService.getInstance().setAthleteAnchor(null);
 
     // Stop MediaRecorder and package temporary video Blob URL
     if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
