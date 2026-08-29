@@ -1,6 +1,6 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { RecordedSet, EXERCISES, ExerciseType } from '../core/models';
-import { Check, Plus, BarChart3, Trash2 } from 'lucide-react';
+import { Check, Plus, BarChart3, Trash2, Video, Eye, Play } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface Props {
@@ -19,6 +19,8 @@ export const ResultsView: React.FC<Props> = ({
   onDiscard
 }) => {
   const [selectedRepIndex, setSelectedRepIndex] = useState(1);
+  const [displayMode, setDisplayMode] = useState<'skeleton' | 'video'>(set.videoUrl ? 'video' : 'skeleton');
+  const videoPlaybackRef = useRef<HTMLVideoElement>(null);
   const exerciseDef = EXERCISES[set.exercise] || Object.values(EXERCISES)[0];
 
   useEffect(() => {
@@ -33,6 +35,15 @@ export const ResultsView: React.FC<Props> = ({
   }, [set]);
 
   const selectedRep = set.reps.find(r => r.index === selectedRepIndex) || set.reps[0];
+
+  // Automatically seek to selected rep in video replay mode
+  useEffect(() => {
+    if (displayMode === 'video' && videoPlaybackRef.current && selectedRep) {
+      videoPlaybackRef.current.currentTime = Math.max(0, selectedRep.startTime - 0.2);
+      videoPlaybackRef.current.playbackRate = 0.75;
+      videoPlaybackRef.current.play().catch(() => {});
+    }
+  }, [selectedRepIndex, displayMode]);
 
   return (
     <div className="flex flex-col h-full bg-black px-4 pt-3 pb-6 max-w-md mx-auto overflow-y-auto">
@@ -55,18 +66,56 @@ export const ResultsView: React.FC<Props> = ({
         </button>
       </div>
 
-      {/* Dynamic Biomechanical Skeleton Visualizer Box */}
-      <div className="relative w-full h-52 bg-neutral-950 rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center mb-3">
-        <svg viewBox="0 0 360 210" className="w-full h-full">
-          {renderDynamicSkeleton(set.exercise, selectedRep.primaryROM)}
-        </svg>
+      {/* Dynamic Biomechanical Visualizer Box (Video / Skeleton) */}
+      <div className="relative w-full h-56 bg-neutral-950 rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center mb-3">
+        {displayMode === 'video' && set.videoUrl ? (
+          <div className="relative w-full h-full bg-black flex items-center justify-center">
+            <video
+              ref={videoPlaybackRef}
+              src={set.videoUrl}
+              playsInline
+              controls
+              className="w-full h-full object-contain"
+            />
+          </div>
+        ) : (
+          <svg viewBox="0 0 360 210" className="w-full h-full">
+            {renderDynamicSkeleton(set.exercise, selectedRep.primaryROM)}
+          </svg>
+        )}
+
+        {/* View Switcher Tabs (Video vs Skeleton) */}
+        {set.videoUrl && (
+          <div className="absolute top-3 right-3 z-10 flex bg-black/80 backdrop-blur-md rounded-lg p-0.5 border border-white/10 shadow-lg">
+            <button
+              onClick={() => setDisplayMode('video')}
+              className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-md transition-colors ${
+                displayMode === 'video' ? 'bg-[#00E676] text-black' : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Video className="w-3 h-3" />
+              <span>Video</span>
+            </button>
+            <button
+              onClick={() => setDisplayMode('skeleton')}
+              className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-md transition-colors ${
+                displayMode === 'skeleton' ? 'bg-[#00E676] text-black' : 'text-neutral-400 hover:text-white'
+              }`}
+            >
+              <Eye className="w-3 h-3" />
+              <span>Skelet</span>
+            </button>
+          </div>
+        )}
 
         {/* Measured Angle Badge */}
         <div className="absolute top-3 left-3 bg-[#00E676] text-black font-black text-xs px-2.5 py-1 rounded-lg shadow-md shadow-[#00E676]/20">
           Målt: {Math.round(selectedRep.primaryROM)}°
         </div>
-        <div className="absolute bottom-3 right-3 bg-black/75 font-mono text-[11px] text-neutral-300 px-2.5 py-1 rounded-lg border border-white/10 backdrop-blur-xs">
-          Gentagelse {selectedRep.index} • {selectedRep.duration.toFixed(1)}s (Eks: {selectedRep.eccentricDuration.toFixed(1)}s / Kon: {selectedRep.concentricDuration.toFixed(1)}s)
+        <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+          <div className="bg-black/80 font-mono text-[10px] text-neutral-300 px-2.5 py-1 rounded-lg border border-white/10 backdrop-blur-xs">
+            Rep {selectedRep.index} • {selectedRep.duration.toFixed(1)}s (Eks: {selectedRep.eccentricDuration.toFixed(1)}s / Kon: {selectedRep.concentricDuration.toFixed(1)}s)
+          </div>
         </div>
       </div>
 

@@ -1,4 +1,4 @@
-import { PoseFrame, Repetition, SetAnalysis, CameraViewType, FormObservation, ExerciseType, FormStabilityStatus } from '../models';
+import { PoseFrame, Repetition, SetAnalysis, CameraViewType, FormObservation, ExerciseType, FormStabilityStatus, JointName } from '../models';
 import { AngleCalculator } from '../angleCalculator';
 
 export interface ExerciseAnalyzer {
@@ -19,6 +19,33 @@ function computeStats(values: number[]): { mean: number; stdDev: number } {
     mean: Math.round(mean * 10) / 10,
     stdDev: Math.round(stdDev * 10) / 10
   };
+}
+
+/**
+ * Computes 3D metric angle when worldJoints is available from MediaPipe,
+ * falling back gracefully to 2D projection angle when only 2D coordinates exist.
+ */
+function getJointAngle(
+  f: PoseFrame,
+  jointA: JointName,
+  vertexB: JointName,
+  jointC: JointName
+): number | null {
+  if (f.worldJoints) {
+    const pA = f.worldJoints[jointA];
+    const pB = f.worldJoints[vertexB];
+    const pC = f.worldJoints[jointC];
+    if (pA && pB && pC && pA.score > 0.4 && pB.score > 0.4 && pC.score > 0.4) {
+      return AngleCalculator.angle3D(pA, pB, pC);
+    }
+  }
+  const pA = f.joints[jointA];
+  const pB = f.joints[vertexB];
+  const pC = f.joints[jointC];
+  if (pA && pB && pC && pA.score > 0.4 && pB.score > 0.4 && pC.score > 0.4) {
+    return AngleCalculator.angle2D(pA, pB, pC);
+  }
+  return null;
 }
 
 /**
@@ -86,12 +113,10 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
 
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i];
-      const hip = f.joints.left_hip || f.joints.right_hip;
-      const knee = f.joints.left_knee || f.joints.right_knee;
-      const ankle = f.joints.left_ankle || f.joints.right_ankle;
-      if (!hip || !knee || !ankle) continue;
+      const kneeAngle = getJointAngle(f, 'left_hip', 'left_knee', 'left_ankle') ??
+                        getJointAngle(f, 'right_hip', 'right_knee', 'right_ankle');
+      if (kneeAngle === null) continue;
 
-      const kneeAngle = AngleCalculator.angle2D(hip, knee, ankle);
       const t = f.timestamp;
 
       if (state === 'standing' && kneeAngle < 155) {
@@ -293,14 +318,12 @@ export class BicepCurlAnalyzer implements ExerciseAnalyzer {
 
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i];
-      const s = f.joints.left_shoulder || f.joints.right_shoulder;
-      const e = f.joints.left_elbow || f.joints.right_elbow;
-      const w = f.joints.left_wrist || f.joints.right_wrist;
-      const h = f.joints.left_hip || f.joints.right_hip;
-      if (!s || !e || !w) continue;
+      const elbowAngle = getJointAngle(f, 'left_shoulder', 'left_elbow', 'left_wrist') ??
+                         getJointAngle(f, 'right_shoulder', 'right_elbow', 'right_wrist');
+      if (elbowAngle === null) continue;
 
-      const elbowAngle = AngleCalculator.angle2D(s, e, w);
-      const currentShoulderAngle = h ? AngleCalculator.angle2D(h, s, e) : 0;
+      const currentShoulderAngle = getJointAngle(f, 'left_hip', 'left_shoulder', 'left_elbow') ??
+                                   getJointAngle(f, 'right_hip', 'right_shoulder', 'right_elbow') ?? 0;
       const t = f.timestamp;
 
       if (state === 'lockout' && elbowAngle < 140) {
@@ -446,14 +469,12 @@ export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
 
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i];
-      const s = f.joints.left_shoulder || f.joints.right_shoulder;
-      const e = f.joints.left_elbow || f.joints.right_elbow;
-      const w = f.joints.left_wrist || f.joints.right_wrist;
-      const h = f.joints.left_hip || f.joints.right_hip;
-      if (!s || !e || !w) continue;
+      const elbowAngle = getJointAngle(f, 'left_shoulder', 'left_elbow', 'left_wrist') ??
+                         getJointAngle(f, 'right_shoulder', 'right_elbow', 'right_wrist');
+      if (elbowAngle === null) continue;
 
-      const elbowAngle = AngleCalculator.angle2D(s, e, w);
-      const currentShoulderAngle = h ? AngleCalculator.angle2D(h, s, e) : 0;
+      const currentShoulderAngle = getJointAngle(f, 'left_hip', 'left_shoulder', 'left_elbow') ??
+                                   getJointAngle(f, 'right_hip', 'right_shoulder', 'right_elbow') ?? 0;
       const t = f.timestamp;
 
       if (state === 'flexed' && elbowAngle > 95) {
@@ -597,15 +618,8 @@ export class ShoulderPressAnalyzer implements ExerciseAnalyzer {
 
     for (let i = 0; i < frames.length; i++) {
       const f = frames[i];
-      const sL = f.joints.left_shoulder;
-      const eL = f.joints.left_elbow;
-      const wL = f.joints.left_wrist;
-      const sR = f.joints.right_shoulder;
-      const eR = f.joints.right_elbow;
-      const wR = f.joints.right_wrist;
-
-      const leftAngle = sL && eL && wL ? AngleCalculator.angle2D(sL, eL, wL) : null;
-      const rightAngle = sR && eR && wR ? AngleCalculator.angle2D(sR, eR, wR) : null;
+      const leftAngle = getJointAngle(f, 'left_shoulder', 'left_elbow', 'left_wrist');
+      const rightAngle = getJointAngle(f, 'right_shoulder', 'right_elbow', 'right_wrist');
 
       const activeAngle = leftAngle ?? rightAngle;
       if (activeAngle === null) continue;

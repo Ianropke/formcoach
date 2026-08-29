@@ -1,8 +1,34 @@
-import { Point2D } from './models';
+import { Point2D, Point3D } from './models';
 
 export class AngleCalculator {
   /**
-   * Computes the angle (in degrees [0 ... 180]) between vector BA and vector BC at vertex B.
+   * Computes the 3D angle (in degrees [0 ... 180]) between vector BA and vector BC at vertex B
+   * using 3D metric coordinates. Invariant to camera perspective foreshortening.
+   */
+  public static angle3D(pointA: Point3D, vertexB: Point3D, pointC: Point3D): number {
+    const vBAx = pointA.x - vertexB.x;
+    const vBAy = pointA.y - vertexB.y;
+    const vBAz = (pointA.z ?? 0) - (vertexB.z ?? 0);
+    
+    const vBCx = pointC.x - vertexB.x;
+    const vBCy = pointC.y - vertexB.y;
+    const vBCz = (pointC.z ?? 0) - (vertexB.z ?? 0);
+    
+    const dotProduct = (vBAx * vBCx) + (vBAy * vBCy) + (vBAz * vBCz);
+    const magBA = Math.sqrt((vBAx * vBAx) + (vBAy * vBAy) + (vBAz * vBAz));
+    const magBC = Math.sqrt((vBCx * vBCx) + (vBCy * vBCy) + (vBCz * vBCz));
+    
+    if (magBA === 0 || magBC === 0) {
+      return 0.0;
+    }
+    
+    const cosTheta = Math.max(-1.0, Math.min(1.0, dotProduct / (magBA * magBC)));
+    const radians = Math.acos(cosTheta);
+    return radians * (180.0 / Math.PI);
+  }
+
+  /**
+   * Computes the angle (in degrees [0 ... 180]) between vector BA and vector BC at vertex B on 2D plane.
    */
   public static angle2D(pointA: Point2D, vertexB: Point2D, pointC: Point2D): number {
     const vBAx = pointA.x - vertexB.x;

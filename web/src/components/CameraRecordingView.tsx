@@ -5,7 +5,8 @@ import { PoseSmoother } from '../core/poseSmoother';
 import { AngleCalculator } from '../core/angleCalculator';
 import { CameraQualityGate, CameraQualityResult } from '../core/qualityGate';
 import { PoseLandmarkerService } from '../vision/poseLandmarkerService';
-import { Square, ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, XCircle, SwitchCamera, Activity } from 'lucide-react';
+import { AudioCoachService } from '../core/audio/audioCoachService';
+import { Square, ArrowLeft, CheckCircle2, AlertCircle, RefreshCw, XCircle, SwitchCamera, Activity, Volume2, VolumeX } from 'lucide-react';
 import { CameraTelemetry } from '../core/models';
 
 interface Props {
@@ -26,6 +27,7 @@ export const CameraRecordingView: React.FC<Props> = ({
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
   const [showTelemetry, setShowTelemetry] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
   const [telemetry, setTelemetry] = useState<CameraTelemetry>({
     cameraFPS: 30,
     inferenceFPS: 0,
@@ -51,6 +53,10 @@ export const CameraRecordingView: React.FC<Props> = ({
   const animationFrameId = useRef<number | null>(null);
   const startTimeRef = useRef<number>(0);
   const poseSmootherRef = useRef(new PoseSmoother(0.35));
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const videoChunksRef = useRef<Blob[]>([]);
+  const depthMilestoneTriggeredRef = useRef<boolean>(false);
+  const liveRepCountRef = useRef<number>(0);
 
   // Telemetry polling interval
   useEffect(() => {
@@ -145,7 +151,50 @@ export const CameraRecordingView: React.FC<Props> = ({
 
             // Compute real measured joint angle
             const angle = computeActiveAngle(rawPose, exercise);
-            if (angle !== null) setLiveAngle(Math.round(angle));
+            if (angle !== null) {
+              setLiveAngle(Math.round(angle));
+
+              // Real-Time Audio Cues (Zero-latency depth chimes & live milestone triggers)
+              if (phase === 'recording') {
+                if (exercise === 'squat' || exercise === 'legPress') {
+                  if (angle <= 88 && !depthMilestoneTriggeredRef.current) {
+                    depthMilestoneTriggeredRef.current = true;
+                    AudioCoachService.getInstance().playDepthMilestone();
+                  } else if (angle >= 150 && depthMilestoneTriggeredRef.current) {
+                    depthMilestoneTriggeredRef.current = false;
+                    liveRepCountRef.current++;
+                    AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
+                  }
+                } else if (exercise === 'bicepsCurl') {
+                  if (angle <= 58 && !depthMilestoneTriggeredRef.current) {
+                    depthMilestoneTriggeredRef.current = true;
+                    AudioCoachService.getInstance().playDepthMilestone();
+                  } else if (angle >= 135 && depthMilestoneTriggeredRef.current) {
+                    depthMilestoneTriggeredRef.current = false;
+                    liveRepCountRef.current++;
+                    AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
+                  }
+                } else if (exercise === 'tricepsPushdown') {
+                  if (angle >= 160 && !depthMilestoneTriggeredRef.current) {
+                    depthMilestoneTriggeredRef.current = true;
+                    AudioCoachService.getInstance().playDepthMilestone();
+                  } else if (angle <= 95 && depthMilestoneTriggeredRef.current) {
+                    depthMilestoneTriggeredRef.current = false;
+                    liveRepCountRef.current++;
+                    AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
+                  }
+                } else if (exercise === 'shoulderPress') {
+                  if (angle >= 160 && !depthMilestoneTriggeredRef.current) {
+                    depthMilestoneTriggeredRef.current = true;
+                    AudioCoachService.getInstance().playDepthMilestone();
+                  } else if (angle <= 90 && depthMilestoneTriggeredRef.current) {
+                    depthMilestoneTriggeredRef.current = false;
+                    liveRepCountRef.current++;
+                    AudioCoachService.getInstance().speak(liveRepCountRef.current.toString());
+                  }
+                }
+              }
+            }
 
             // Draw genuine detected skeleton
             drawDetectedSkeleton(ctx, canvas.width, canvas.height, rawPose);
@@ -155,6 +204,7 @@ export const CameraRecordingView: React.FC<Props> = ({
               const recordedFrame: PoseFrame = {
                 timestamp: (Date.now() - startTimeRef.current) / 1000,
                 joints: rawPose.joints,
+                worldJoints: rawPose.worldJoints,
                 confidence: rawPose.confidence
               };
               recordedFramesRef.current.push(recordedFrame);
@@ -204,19 +254,49 @@ export const CameraRecordingView: React.FC<Props> = ({
     return () => clearInterval(interval);
   }, [phase]);
 
-  // Start 3-second countdown
+  // Start 3-second countdown with AirPods Audio & MediaRecorder Init
   const handleStartCountdown = () => {
     setPhase('countdown');
     setCountdown(3);
     recordedFramesRef.current = [];
+    depthMilestoneTriggeredRef.current = false;
+    liveRepCountRef.current = 0;
+
+    AudioCoachService.getInstance().unlockAudio();
+    AudioCoachService.getInstance().playCountdownBeep(false);
 
     const interval = setInterval(() => {
       setCountdown(prev => {
         if (prev <= 1) {
           clearInterval(interval);
           setPhase('recording');
+          AudioCoachService.getInstance().playCountdownBeep(true);
+          AudioCoachService.getInstance().speak('Start', true);
+
+          // Start in-memory MediaRecorder video capture
+          if (videoRef.current && videoRef.current.srcObject) {
+            const stream = videoRef.current.srcObject as MediaStream;
+            try {
+              const types = ['video/webm;codecs=vp9', 'video/webm', 'video/mp4'];
+              const mimeType = types.find(t => typeof MediaRecorder !== 'undefined' && MediaRecorder.isTypeSupported(t)) || '';
+              videoChunksRef.current = [];
+              if (typeof MediaRecorder !== 'undefined') {
+                const mr = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
+                mr.ondataavailable = (e) => {
+                  if (e.data && e.data.size > 0) {
+                    videoChunksRef.current.push(e.data);
+                  }
+                };
+                mr.start(200);
+                mediaRecorderRef.current = mr;
+              }
+            } catch (err) {
+              console.warn('MediaRecorder recording bypassed:', err);
+            }
+          }
           return 0;
         }
+        AudioCoachService.getInstance().playCountdownBeep(false);
         return prev - 1;
       });
     }, 1000);
@@ -225,6 +305,15 @@ export const CameraRecordingView: React.FC<Props> = ({
   // Stop Recording and Run Deterministic Biomechanics Pipeline
   const handleStopRecording = () => {
     setPhase('analyzing');
+
+    // Stop MediaRecorder and package temporary video Blob URL
+    if (mediaRecorderRef.current && mediaRecorderRef.current.state !== 'inactive') {
+      try {
+        mediaRecorderRef.current.stop();
+      } catch (e) {
+        console.warn('MediaRecorder stop error:', e);
+      }
+    }
 
     setTimeout(() => {
       const rawFrames = recordedFramesRef.current;
@@ -251,13 +340,28 @@ export const CameraRecordingView: React.FC<Props> = ({
       // 5. Biomechanical Kinematic Analysis
       const analysis = analyzer.analyzeSet(reps, smoothedFrames, view);
 
+      // Create in-memory Video URL if recorded
+      let videoUrl: string | undefined;
+      if (videoChunksRef.current.length > 0) {
+        try {
+          const mime = videoChunksRef.current[0].type || 'video/webm';
+          const blob = new Blob(videoChunksRef.current, { type: mime });
+          videoUrl = URL.createObjectURL(blob);
+        } catch (e) {
+          console.warn('Video blob creation error:', e);
+        }
+      }
+
+      AudioCoachService.getInstance().speak(`Sæt gennemført. ${reps.length} gentagelser målt.`);
+
       const recordedSet: RecordedSet = {
         id: 'set_' + Date.now(),
         exercise,
         view,
         date: new Date().toISOString(),
         reps,
-        analysis
+        analysis,
+        videoUrl
       };
 
       onFinishSet(recordedSet);
@@ -321,6 +425,22 @@ export const CameraRecordingView: React.FC<Props> = ({
         </div>
 
         <div className="flex items-center gap-2">
+          <button
+            onClick={() => {
+              const next = !isMuted;
+              setIsMuted(next);
+              AudioCoachService.getInstance().setMuted(next);
+            }}
+            title={isMuted ? 'Slå lyd til' : 'Slå lyd fra (AirPods / Højttaler)'}
+            className={`p-2.5 rounded-full backdrop-blur-md border transition-colors ${
+              isMuted
+                ? 'bg-neutral-800 text-neutral-400 border-white/10'
+                : 'bg-black/60 text-[#00E676] border-white/10 hover:bg-neutral-800'
+            }`}
+          >
+            {isMuted ? <VolumeX className="w-5 h-5" /> : <Volume2 className="w-5 h-5" />}
+          </button>
+
           <button
             onClick={() => setShowTelemetry(prev => !prev)}
             title="Telemetri & Ydeevne"

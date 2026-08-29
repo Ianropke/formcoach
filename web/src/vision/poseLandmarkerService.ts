@@ -1,5 +1,5 @@
-import { FilesetResolver, PoseLandmarker, NormalizedLandmark } from '@mediapipe/tasks-vision';
-import { PoseFrame, JointName, Point2D, CameraTelemetry } from '../core/models';
+import { FilesetResolver, PoseLandmarker, NormalizedLandmark, Landmark } from '@mediapipe/tasks-vision';
+import { PoseFrame, JointName, Point2D, Point3D, CameraTelemetry } from '../core/models';
 
 export class PoseLandmarkerService {
   private static instance: PoseLandmarkerService | null = null;
@@ -69,7 +69,8 @@ export class PoseLandmarkerService {
       }
 
       const rawLandmarks = result.landmarks[0];
-      return this.mapLandmarksToPoseFrame(rawLandmarks, timestampMs / 1000);
+      const rawWorldLandmarks = result.worldLandmarks && result.worldLandmarks.length > 0 ? result.worldLandmarks[0] : undefined;
+      return this.mapLandmarksToPoseFrame(rawLandmarks, rawWorldLandmarks, timestampMs / 1000);
     } catch (err) {
       this.droppedFrameCount++;
       console.warn('MediaPipe frame detection error:', err);
@@ -119,10 +120,15 @@ export class PoseLandmarkerService {
   }
 
   /**
-   * Maps MediaPipe's 33 NormalizedLandmarks to our strongly-typed PoseFrame domain model
+   * Maps MediaPipe's 33 NormalizedLandmarks and 3D WorldLandmarks to our strongly-typed PoseFrame domain model
    */
-  private mapLandmarksToPoseFrame(landmarks: NormalizedLandmark[], timestampSec: number): PoseFrame {
+  private mapLandmarksToPoseFrame(
+    landmarks: NormalizedLandmark[],
+    worldLandmarks: Landmark[] | undefined,
+    timestampSec: number
+  ): PoseFrame {
     const joints: Partial<Record<JointName, Point2D>> = {};
+    const worldJoints: Partial<Record<JointName, Point3D>> = {};
 
     const jointMap: Record<number, JointName> = {
       0: 'nose',
@@ -156,6 +162,16 @@ export class PoseLandmarkerService {
         totalScore += score;
         jointCount++;
       }
+
+      if (worldLandmarks && worldLandmarks[idx]) {
+        const wlm = worldLandmarks[idx];
+        worldJoints[jointName] = {
+          x: wlm.x,
+          y: wlm.y,
+          z: wlm.z,
+          score: wlm.visibility !== undefined ? wlm.visibility : 0.9
+        };
+      }
     }
 
     const overallConfidence = jointCount > 0 ? totalScore / jointCount : 0.0;
@@ -163,6 +179,7 @@ export class PoseLandmarkerService {
     return {
       timestamp: timestampSec,
       joints,
+      worldJoints: worldLandmarks ? worldJoints : undefined,
       confidence: overallConfidence
     };
   }

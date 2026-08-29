@@ -99,6 +99,13 @@ export interface Point2D {
   score: number;
 }
 
+export interface Point3D {
+  x: number;
+  y: number;
+  z?: number; // Metric depth (meters from hips center in 3D world coordinates)
+  score: number;
+}
+
 export type JointName =
   | 'nose'
   | 'left_shoulder' | 'right_shoulder'
@@ -111,6 +118,7 @@ export type JointName =
 export interface PoseFrame {
   timestamp: number;
   joints: Partial<Record<JointName, Point2D>>;
+  worldJoints?: Partial<Record<JointName, Point3D>>; // Metric 3D world landmarks from MediaPipe
   confidence: number;
 }
 
@@ -174,6 +182,7 @@ export interface RecordedSet {
   date: string;
   reps: Repetition[];
   analysis: SetAnalysis;
+  videoUrl?: string; // In-memory Blob Object URL for video playback replay
 }
 
 export interface WorkoutSessionAnalysis {

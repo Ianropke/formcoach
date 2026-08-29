@@ -32,7 +32,21 @@ const pC = { x: 1.0, y: 0.0, score: 1.0 };
 const angle90 = AngleCalculator.angle2D(pA, pB, pC);
 assert('AngleCalculator: Orthogonal 90° Angle', Math.abs(angle90 - 90.0) < 0.001);
 
-// 2. AngleCalculator: Straight Line 180°
+// 2. AngleCalculator: 3D Orthogonal 90°
+const pA3D = { x: 0.0, y: 1.0, z: 0.0, score: 1.0 };
+const pB3D = { x: 0.0, y: 0.0, z: 0.0, score: 1.0 };
+const pC3D = { x: 0.0, y: 0.0, z: 1.0, score: 1.0 };
+const angle90_3D = AngleCalculator.angle3D(pA3D, pB3D, pC3D);
+assert('AngleCalculator: 3D Orthogonal 90° Vector Angle', Math.abs(angle90_3D - 90.0) < 0.001);
+
+// 3. AngleCalculator: 3D Metric Invariance with Depth Offset
+const pRotA = { x: 1.0, y: 0.0, z: 1.0, score: 1.0 };
+const pRotB = { x: 0.0, y: 0.0, z: 0.0, score: 1.0 };
+const pRotC = { x: 0.0, y: 1.0, z: 0.0, score: 1.0 };
+const angleRot3D = AngleCalculator.angle3D(pRotA, pRotB, pRotC);
+assert('AngleCalculator: 3D Metric Vector Dot-Product (90° Invariant)', Math.abs(angleRot3D - 90.0) < 0.001);
+
+// 4. AngleCalculator: Straight Line 180°
 const pStraight = { x: 0.0, y: -1.0, score: 1.0 };
 const angle180 = AngleCalculator.angle2D(pA, pB, pStraight);
 assert('AngleCalculator: Straight Line 180° Angle', Math.abs(angle180 - 180.0) < 0.001);

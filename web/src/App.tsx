@@ -68,12 +68,25 @@ export default function App() {
   };
 
   const handleDiscard = () => {
-    // Drop in-memory set completely without writing to storage
+    // Drop in-memory set completely and revoke temporary video blob URL without writing to storage
+    if (currentResultSet?.videoUrl) {
+      try {
+        URL.revokeObjectURL(currentResultSet.videoUrl);
+      } catch (e) {}
+    }
     setCurrentResultSet(null);
     setActiveFlow('selector');
   };
 
   const handleDoneSummary = () => {
+    // Clean up any remaining in-memory video blobs
+    activeSessionSets.forEach(s => {
+      if (s.videoUrl) {
+        try {
+          URL.revokeObjectURL(s.videoUrl);
+        } catch (e) {}
+      }
+    });
     setActiveSessionSets([]);
     setCurrentResultSet(null);
     setActiveFlow('selector');
