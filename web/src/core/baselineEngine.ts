@@ -11,22 +11,30 @@ export class PersonalBaselineEngine {
     const isExtension = this.isExtensionExercise(exercise);
 
     // Statistical Cold-Start Guard: >= 3 recorded sessions and >= 25 reps
+    if (exerciseSets.length === 0) {
+      return {
+        exercise,
+        totalSessions: 0,
+        totalReps: 0,
+        baselineROMMean: 0,
+        baselineROMStdDev: 0,
+        personalBestROM: 0,
+        hasSufficientData: false
+      };
+    }
+
     if (exerciseSets.length < 3 || totalReps < 25) {
-      const mean = exerciseSets.length > 0 
-        ? exerciseSets.reduce((a, b) => a + b.analysis.meanROM, 0) / exerciseSets.length 
-        : (isExtension ? 160 : 85);
-      const pb = exerciseSets.length > 0
-        ? (isExtension
-            ? Math.max(...exerciseSets.map(s => Math.max(...s.reps.map(r => r.primaryROM))))
-            : Math.min(...exerciseSets.map(s => Math.min(...s.reps.map(r => r.primaryROM)))))
-        : (isExtension ? 170 : 80);
+      const mean = exerciseSets.reduce((a, b) => a + b.analysis.meanROM, 0) / exerciseSets.length;
+      const pb = isExtension
+        ? Math.max(...exerciseSets.map(s => Math.max(...s.reps.map(r => r.primaryROM))))
+        : Math.min(...exerciseSets.map(s => Math.min(...s.reps.map(r => r.primaryROM))));
 
       return {
         exercise,
         totalSessions: exerciseSets.length,
         totalReps,
         baselineROMMean: Math.round(mean),
-        baselineROMStdDev: 4.0,
+        baselineROMStdDev: 3.0,
         personalBestROM: Math.round(pb),
         hasSufficientData: false
       };

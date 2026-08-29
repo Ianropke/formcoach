@@ -47,9 +47,13 @@ export const BaselinesView: React.FC<Props> = ({ history, onBack }) => {
                   <div className="text-sm font-extrabold text-white">{ex.name}</div>
                   <div className="text-[11px] text-neutral-400">{ex.subtitle}</div>
                 </div>
-                <div className="flex items-center gap-1 text-xs font-black text-[#FFEB3B] bg-[#FFEB3B]/10 px-2.5 py-1 rounded-lg border border-[#FFEB3B]/20">
+                <div className={`flex items-center gap-1 text-xs font-black px-2.5 py-1 rounded-lg border ${
+                  setsCount > 0
+                    ? 'text-[#FFEB3B] bg-[#FFEB3B]/10 border-[#FFEB3B]/20'
+                    : 'text-neutral-500 bg-neutral-900 border-white/5'
+                }`}>
                   <Trophy className="w-3.5 h-3.5" />
-                  <span>PR {baseline.personalBestROM}°</span>
+                  <span>{setsCount > 0 ? `PR ${baseline.personalBestROM}°` : 'PR —'}</span>
                 </div>
               </div>
 
@@ -61,12 +65,25 @@ export const BaselinesView: React.FC<Props> = ({ history, onBack }) => {
                 </div>
                 <div className="p-2 bg-neutral-900/50 rounded-xl">
                   <div className="text-[10px] uppercase font-bold text-neutral-400">Gns. ROM</div>
-                  <div className="text-sm font-black text-white">~{baseline.baselineROMMean}°</div>
+                  <div className="text-sm font-black text-white">
+                    {setsCount > 0 ? `~${baseline.baselineROMMean}°` : '—'}
+                  </div>
                 </div>
                 <div className="p-2 bg-neutral-900/50 rounded-xl">
                   <div className="text-[10px] uppercase font-bold text-neutral-400">Spredning (σ)</div>
-                  <div className="text-sm font-black text-[#00E676]">±{baseline.baselineROMStdDev}°</div>
+                  <div className={`text-sm font-black ${setsCount > 0 ? 'text-[#00E676]' : 'text-neutral-500'}`}>
+                    {setsCount > 0 ? `±${baseline.baselineROMStdDev}°` : '—'}
+                  </div>
                 </div>
+              </div>
+
+              {/* Baseline Calibration Status */}
+              <div className="text-[10px] font-bold text-neutral-500 text-center pt-0.5">
+                {setsCount === 0
+                  ? 'Ingen sæt registreret endnu'
+                  : !baseline.hasSufficientData
+                  ? `Etablerer baseline (${setsCount}/3 sæt gennemført)`
+                  : '✓ Stabil baseline etableret'}
               </div>
             </div>
           );

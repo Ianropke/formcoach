@@ -2,8 +2,8 @@ import { PoseFrame, Repetition, SetAnalysis, CameraViewType, FormObservation, Ex
 import { AngleCalculator } from '../angleCalculator';
 
 export interface ExerciseAnalyzer {
-  segmentReps(frames: PoseFrame[], view: CameraViewType): Repetition[];
-  analyzeSet(reps: Repetition[], frames: PoseFrame[], view: CameraViewType): SetAnalysis;
+  segmentReps(frames: PoseFrame[], view?: CameraViewType): Repetition[];
+  analyzeSet(reps: Repetition[], frames?: PoseFrame[], view?: CameraViewType): SetAnalysis;
 }
 
 // -----------------------------------------------------------------------------
@@ -215,7 +215,7 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
       if (delta >= 10) {
         observations.push({
           id: 'squat.rom.decay',
-          title: 'Depth Decay Detected',
+          title: 'Udmattelsestab i Dybde',
           detail: `Squat-dybden faldt med ~${delta}% på de sidste gentagelser pga. muskeludmattelse.`,
           evidence: `Sidste reps nåede kun ${Math.round(late)}° vs ${Math.round(early)}° i starten.`,
           severity: 'warning',
@@ -227,7 +227,7 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
     if (romStats.mean <= 88) {
       observations.push({
         id: 'squat.depth.parallel',
-        title: 'Deep & Parallel Squats',
+        title: 'Dyb & Parallel Squat',
         detail: `Flot og stabil parallel dybde (~${Math.round(romStats.mean)}° ±${romStats.stdDev}°) over alle ${reps.length} gentagelser.`,
         evidence: `Fuld dybde bekræftet matematisk.`,
         severity: 'positive',
@@ -236,7 +236,7 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
     } else if (romStats.mean >= 105) {
       observations.push({
         id: 'squat.depth.shallow',
-        title: 'Shallow Depth Warning',
+        title: 'Manglende Dybde (Over Parallel)',
         detail: `Squat-dybden stoppede ved ~${Math.round(romStats.mean)}° (over parallel). Sigt efter ≤88° for fuld aktivering.`,
         evidence: `Knævinkel forblev over 105°.`,
         severity: 'warning',
@@ -293,7 +293,7 @@ export class LegPressAnalyzer implements ExerciseAnalyzer {
     const observations: FormObservation[] = [
       {
         id: 'legpress.knee.depth',
-        title: 'Controlled Sled Range',
+        title: 'Kontrolleret Slædebevægelse',
         detail: `Kontrolleret knæbøjning nåede ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) med jævn vending i slæden.`,
         evidence: `Kontrolleret vendepunkt observeret over ${reps.length} gentagelser.`,
         severity: 'positive',
@@ -439,7 +439,7 @@ export class BicepCurlAnalyzer implements ExerciseAnalyzer {
     if (peakDrift >= 15 || driftStats.mean >= 12) {
       observations.push({
         id: 'curl.shoulder.drift',
-        title: 'Shoulder Momentum Swing Detected',
+        title: 'Skuldersving / Momentum Registreret',
         detail: `Overarmen svang fremad med Δ${Math.round(peakDrift)}° ift. startpositionen. Lås albuerne mod kroppen for at isolere biceps.`,
         evidence: `Skuldersvaj ≥15° registreret på reps: ${reps.filter(r => (r.secondaryROM || 0) >= 15).map(r => r.index).join(', ')}.`,
         severity: 'warning',
@@ -448,7 +448,7 @@ export class BicepCurlAnalyzer implements ExerciseAnalyzer {
     } else {
       observations.push({
         id: 'curl.form.strict',
-        title: 'Strict Bicep Isolation',
+        title: 'Strikt Biceps-Isolering',
         detail: `Albuerne forblev fastlåst med under Δ${Math.round(peakDrift || 6)}° skuldersvaj over alle ${reps.length} gentagelser.`,
         evidence: `Strikt udførelse bekræftet ift. startposition.`,
         severity: 'positive',
@@ -595,7 +595,7 @@ export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
     if (peakDrift >= 16) {
       observations.push({
         id: 'triceps.elbow.drift',
-        title: 'Pinned Elbow Drift',
+        title: 'Fremadrettet Albue-Vandring',
         detail: `Albuerne drev fremad med Δ${Math.round(peakDrift)}° ift. overkroppen. Hold albuerne fikseret i siden.`,
         evidence: `Overarmsbevægelse ≥16° registreret på reps: ${reps.filter(r => (r.secondaryROM || 0) >= 16).map(r => r.index).join(', ')}.`,
         severity: 'warning',
@@ -604,7 +604,7 @@ export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
     } else {
       observations.push({
         id: 'triceps.form.strict',
-        title: 'Strict Triceps Lockout',
+        title: 'Strikt Triceps-Ekstension',
         detail: `Albuerne forblev fastlåst med fuld ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) ekstension på alle gentagelser.`,
         evidence: `Fuld ekstension uden skuldersving.`,
         severity: 'positive',
@@ -741,7 +741,7 @@ export class ShoulderPressAnalyzer implements ExerciseAnalyzer {
     if (asymStats.mean >= 12) {
       observations.push({
         id: 'press.bilateral.asymmetry',
-        title: 'Bilateral Arm Asymmetry Detected',
+        title: 'Bilateral Arm-Asymmetri Registreret',
         detail: `Registrerede i gennemsnit ${Math.round(asymStats.mean)}° asymmetri mellem højre og venstre arms stræk.`,
         evidence: `Asymmetrisk stræk på reps: ${reps.filter(r => (r.secondaryROM || 0) >= 12).map(r => r.index).join(', ')}.`,
         severity: 'warning',
@@ -750,7 +750,7 @@ export class ShoulderPressAnalyzer implements ExerciseAnalyzer {
     } else {
       observations.push({
         id: 'press.lockout.symmetry',
-        title: 'Symmetrical Overhead Lockout',
+        title: 'Symmetrisk Overhoved-Ekstension',
         detail: `Højre og venstre arm bevægede sig symmetrisk inden for ~${Math.round(asymStats.mean)}° afvigelse over alle ${reps.length} gentagelser.`,
         evidence: `Symmetrisk justering bekræftet fra målingerne.`,
         severity: 'positive',

@@ -1,13 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RecordedSet, EXERCISES, ExerciseType } from '../core/models';
-import { Check, Plus, BarChart3, Trash2, Video, Eye, Play } from 'lucide-react';
+import { getAnalyzerForExercise } from '../core/analyzers/exerciseAnalyzers';
+import { Check, Plus, BarChart3, Trash2, Video, Eye, Play, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface Props {
   set: RecordedSet;
   activeSetsCount: number;
-  onSaveAndLogNext: () => void;
-  onSaveAndFinish: () => void;
+  onSaveAndLogNext: (finalSet?: RecordedSet) => void;
+  onSaveAndFinish: (finalSet?: RecordedSet) => void;
   onDiscard: () => void;
 }
 
@@ -18,23 +19,24 @@ export const ResultsView: React.FC<Props> = ({
   onSaveAndFinish,
   onDiscard
 }) => {
+  const [activeSet, setActiveSet] = useState<RecordedSet>(set);
   const [selectedRepIndex, setSelectedRepIndex] = useState(1);
   const [displayMode, setDisplayMode] = useState<'skeleton' | 'video'>(set.videoUrl ? 'video' : 'skeleton');
   const videoPlaybackRef = useRef<HTMLVideoElement>(null);
-  const exerciseDef = EXERCISES[set.exercise] || Object.values(EXERCISES)[0];
+  const exerciseDef = EXERCISES[activeSet.exercise] || Object.values(EXERCISES)[0];
 
   useEffect(() => {
     // Trigger confetti celebration on high quality set
-    if (set.analysis.overallScore >= 90) {
+    if (activeSet.analysis.overallScore >= 90) {
       confetti({
         particleCount: 60,
         spread: 70,
         origin: { y: 0.6 }
       });
     }
-  }, [set]);
+  }, [activeSet]);
 
-  const selectedRep = set.reps.find(r => r.index === selectedRepIndex) || set.reps[0];
+  const selectedRep = activeSet.reps.find(r => r.index === selectedRepIndex) || activeSet.reps[0];
 
   // Automatically seek to selected rep in video replay mode
   useEffect(() => {
@@ -45,6 +47,29 @@ export const ResultsView: React.FC<Props> = ({
     }
   }, [selectedRepIndex, displayMode]);
 
+  // Manually delete a false-positive rep (e.g. unrack/rerack movement)
+  const handleDeleteRep = (repIndexToDelete: number) => {
+    const updatedReps = activeSet.reps
+      .filter(r => r.index !== repIndexToDelete)
+      .map((r, idx) => ({ ...r, index: idx + 1 }));
+
+    if (updatedReps.length === 0) {
+      onDiscard();
+      return;
+    }
+
+    const analyzer = getAnalyzerForExercise(activeSet.exercise);
+    const updatedAnalysis = analyzer.analyzeSet(updatedReps);
+    const updatedSet: RecordedSet = {
+      ...activeSet,
+      reps: updatedReps,
+      analysis: updatedAnalysis
+    };
+
+    setActiveSet(updatedSet);
+    setSelectedRepIndex(prev => Math.min(prev, updatedReps.length));
+  };
+
   return (
     <div className="flex flex-col h-full bg-black px-4 pt-3 pb-6 max-w-md mx-auto overflow-y-auto">
       {/* Top Bar */}
@@ -54,7 +79,7 @@ export const ResultsView: React.FC<Props> = ({
             {exerciseDef.name}
           </div>
           <div className="text-xs font-semibold text-neutral-400">
-            {set.reps.length} gentagelser målt • Sæt {activeSetsCount + 1}
+            {activeSet.reps.length} gentagelser målt • Sæt {activeSetsCount + 1}
           </div>
         </div>
         <button
@@ -68,11 +93,11 @@ export const ResultsView: React.FC<Props> = ({
 
       {/* Dynamic Biomechanical Visualizer Box (Video / Skeleton) */}
       <div className="relative w-full h-56 bg-neutral-950 rounded-2xl border border-white/10 overflow-hidden flex items-center justify-center mb-3">
-        {displayMode === 'video' && set.videoUrl ? (
+        {displayMode === 'video' && activeSet.videoUrl ? (
           <div className="relative w-full h-full bg-black flex items-center justify-center">
             <video
               ref={videoPlaybackRef}
-              src={set.videoUrl}
+              src={activeSet.videoUrl}
               playsInline
               controls
               className="w-full h-full object-contain"
@@ -80,12 +105,12 @@ export const ResultsView: React.FC<Props> = ({
           </div>
         ) : (
           <svg viewBox="0 0 360 210" className="w-full h-full">
-            {renderDynamicSkeleton(set.exercise, selectedRep.primaryROM)}
+            {renderDynamicSkeleton(activeSet.exercise, selectedRep?.primaryROM ?? 90)}
           </svg>
         )}
 
         {/* View Switcher Tabs (Video vs Skeleton) */}
-        {set.videoUrl && (
+        {activeSet.videoUrl && (
           <div className="absolute top-3 right-3 z-10 flex bg-black/80 backdrop-blur-md rounded-lg p-0.5 border border-white/10 shadow-lg">
             <button
               onClick={() => setDisplayMode('video')}
@@ -110,18 +135,33 @@ export const ResultsView: React.FC<Props> = ({
 
         {/* Measured Angle Badge */}
         <div className="absolute top-3 left-3 bg-[#00E676] text-black font-black text-xs px-2.5 py-1 rounded-lg shadow-md shadow-[#00E676]/20">
-          Målt: {Math.round(selectedRep.primaryROM)}°
+          Målt: {Math.round(selectedRep?.primaryROM ?? 0)}°
         </div>
         <div className="absolute bottom-3 left-3 right-3 flex items-center justify-between pointer-events-none">
           <div className="bg-black/80 font-mono text-[10px] text-neutral-300 px-2.5 py-1 rounded-lg border border-white/10 backdrop-blur-xs">
-            Rep {selectedRep.index} • {selectedRep.duration.toFixed(1)}s (Eks: {selectedRep.eccentricDuration.toFixed(1)}s / Kon: {selectedRep.concentricDuration.toFixed(1)}s)
+            Rep {selectedRep?.index ?? 1} • {(selectedRep?.duration ?? 0).toFixed(1)}s (Eks: {(selectedRep?.eccentricDuration ?? 0).toFixed(1)}s / Kon: {(selectedRep?.concentricDuration ?? 0).toFixed(1)}s)
           </div>
         </div>
       </div>
 
+      {/* Rep Timeline Scrubber Header with Delete Button */}
+      <div className="flex items-center justify-between px-1 mb-1.5">
+        <span className="text-neutral-400 font-bold uppercase tracking-wider text-[10px]">
+          Gentagelser ({activeSet.reps.length})
+        </span>
+        <button
+          onClick={() => handleDeleteRep(selectedRepIndex)}
+          className="flex items-center gap-1 text-[10px] font-bold text-red-400 hover:text-red-300 transition-colors px-2 py-0.5 rounded-md bg-red-950/40 border border-red-500/20 active:scale-95"
+          title={`Slet rep ${selectedRepIndex} fra dette sæt`}
+        >
+          <X className="w-3 h-3" />
+          <span>Fjern Rep {selectedRepIndex}</span>
+        </button>
+      </div>
+
       {/* Rep Timeline Scrubber */}
       <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-none mb-3">
-        {set.reps.map(rep => {
+        {activeSet.reps.map(rep => {
           const isSelected = rep.index === selectedRepIndex;
           return (
             <button
@@ -152,7 +192,7 @@ export const ResultsView: React.FC<Props> = ({
           <span>VIGTIGSTE OBSERVARING</span>
         </div>
         <p className="text-xs font-semibold leading-relaxed text-neutral-200">
-          {set.analysis.primaryObservation}
+          {activeSet.analysis.primaryObservation}
         </p>
       </div>
 
@@ -162,10 +202,10 @@ export const ResultsView: React.FC<Props> = ({
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
           <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Bevægelsesbane (ROM)</div>
           <div className="text-2xl font-black text-white mt-1">
-            ~{Math.round(set.analysis.meanROM)}°
+            ~{Math.round(activeSet.analysis.meanROM)}°
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5 font-mono">
-            Spredning: ±{set.analysis.romStdDev || 0}°
+            Spredning: ±{activeSet.analysis.romStdDev || 0}°
           </div>
         </div>
 
@@ -173,29 +213,29 @@ export const ResultsView: React.FC<Props> = ({
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
           <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Tempo & Faser</div>
           <div className="text-2xl font-black text-white mt-1">
-            {set.analysis.meanDuration.toFixed(1)}s
+            {activeSet.analysis.meanDuration.toFixed(1)}s
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5 font-mono">
-            Eks: {(set.analysis.eccentricMean || 1.2).toFixed(1)}s / Kon: {(set.analysis.concentricMean || 1.1).toFixed(1)}s
+            Eks: {(activeSet.analysis.eccentricMean || 1.2).toFixed(1)}s / Kon: {(activeSet.analysis.concentricMean || 1.1).toFixed(1)}s
           </div>
         </div>
 
         {/* Card 3: Kinematic Stability / Relative Drift / Bilateral Asymmetry */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
           <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-            {set.exercise === 'shoulderPress' ? 'Bilateral Asymmetri' : 'Skuldersvaj (Δθ)'}
+            {activeSet.exercise === 'shoulderPress' ? 'Bilateral Asymmetri' : 'Skuldersvaj (Δθ)'}
           </div>
           <div className="text-2xl font-black text-white mt-1">
-            {set.exercise === 'shoulderPress'
-              ? `~${Math.round(set.analysis.meanAsymmetry || 0)}°`
-              : set.analysis.peakRelativeDrift !== undefined
-              ? `Δ${Math.round(set.analysis.peakRelativeDrift)}°`
-              : set.analysis.stabilityStatus === 'STRICT_STABILITY' ? 'Strikte' : 'Variabel'}
+            {activeSet.exercise === 'shoulderPress'
+              ? `~${Math.round(activeSet.analysis.meanAsymmetry || 0)}°`
+              : activeSet.analysis.peakRelativeDrift !== undefined
+              ? `Δ${Math.round(activeSet.analysis.peakRelativeDrift)}°`
+              : activeSet.analysis.stabilityStatus === 'STRICT_STABILITY' ? 'Strikte' : 'Variabel'}
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5">
-            {set.exercise === 'shoulderPress'
+            {activeSet.exercise === 'shoulderPress'
               ? '|Venstre - Højre| forskel'
-              : set.analysis.peakRelativeDrift !== undefined
+              : activeSet.analysis.peakRelativeDrift !== undefined
               ? 'Maksimal afvigelse'
               : 'Stabil bane'}
           </div>
@@ -204,13 +244,13 @@ export const ResultsView: React.FC<Props> = ({
         {/* Card 4: Fatigue / Late-Set Decay */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
           <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Udmattelse / ROM-Fald</div>
-          <div className={`text-2xl font-black mt-1 ${set.analysis.earlyLateROMDelta && set.analysis.earlyLateROMDelta >= 10 ? 'text-amber-400' : 'text-[#00E676]'}`}>
-            {set.analysis.earlyLateROMDelta && set.analysis.earlyLateROMDelta > 0
-              ? `+${Math.round(set.analysis.earlyLateROMDelta)}%`
+          <div className={`text-2xl font-black mt-1 ${activeSet.analysis.earlyLateROMDelta && activeSet.analysis.earlyLateROMDelta >= 10 ? 'text-amber-400' : 'text-[#00E676]'}`}>
+            {activeSet.analysis.earlyLateROMDelta && activeSet.analysis.earlyLateROMDelta > 0
+              ? `+${Math.round(activeSet.analysis.earlyLateROMDelta)}%`
               : '0% Fald'}
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5">
-            {set.analysis.earlyLateROMDelta && set.analysis.earlyLateROMDelta >= 10
+            {activeSet.analysis.earlyLateROMDelta && activeSet.analysis.earlyLateROMDelta >= 10
               ? 'Mindre dybde i slutningen'
               : 'Stabil dybde hele sættet'}
           </div>
@@ -220,7 +260,7 @@ export const ResultsView: React.FC<Props> = ({
       {/* Explicit Save Actions */}
       <div className="space-y-2 mt-auto">
         <button
-          onClick={onSaveAndLogNext}
+          onClick={() => onSaveAndLogNext(activeSet)}
           className="w-full bg-[#00E676] hover:bg-[#00E676]/90 text-black font-extrabold text-base py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#00E676]/20 active:scale-[0.98] transition-transform"
         >
           <Plus className="w-5 h-5" />
@@ -228,7 +268,7 @@ export const ResultsView: React.FC<Props> = ({
         </button>
 
         <button
-          onClick={onSaveAndFinish}
+          onClick={() => onSaveAndFinish(activeSet)}
           className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm py-3.5 rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-[0.98] transition-transform"
         >
           <BarChart3 className="w-4 h-4 text-[#00E676]" />

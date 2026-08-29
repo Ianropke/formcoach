@@ -48,19 +48,21 @@ export default function App() {
     setActiveFlow('results');
   };
 
-  const handleSaveAndLogNext = () => {
-    if (currentResultSet) {
-      LocalStorageManager.saveSet(currentResultSet);
-      setActiveSessionSets(prev => [...prev, currentResultSet]);
+  const handleSaveAndLogNext = (finalSet?: RecordedSet) => {
+    const setToSave = finalSet || currentResultSet;
+    if (setToSave) {
+      LocalStorageManager.saveSet(setToSave);
+      setActiveSessionSets(prev => [...prev, setToSave]);
       setHistory(LocalStorageManager.getRecordedSets());
     }
     setActiveFlow('recording');
   };
 
-  const handleSaveAndFinish = () => {
-    if (currentResultSet) {
-      LocalStorageManager.saveSet(currentResultSet);
-      const updated = [...activeSessionSets, currentResultSet];
+  const handleSaveAndFinish = (finalSet?: RecordedSet) => {
+    const setToSave = finalSet || currentResultSet;
+    if (setToSave) {
+      LocalStorageManager.saveSet(setToSave);
+      const updated = [...activeSessionSets, setToSave];
       setActiveSessionSets(updated);
       setHistory(LocalStorageManager.getRecordedSets());
     }
