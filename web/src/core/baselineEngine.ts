@@ -23,23 +23,6 @@ export class PersonalBaselineEngine {
       };
     }
 
-    if (exerciseSets.length < 3 || totalReps < 25) {
-      const mean = exerciseSets.reduce((a, b) => a + b.analysis.meanROM, 0) / exerciseSets.length;
-      const pb = isExtension
-        ? Math.max(...exerciseSets.map(s => Math.max(...s.reps.map(r => r.primaryROM))))
-        : Math.min(...exerciseSets.map(s => Math.min(...s.reps.map(r => r.primaryROM))));
-
-      return {
-        exercise,
-        totalSessions: exerciseSets.length,
-        totalReps,
-        baselineROMMean: Math.round(mean),
-        baselineROMStdDev: 3.0,
-        personalBestROM: Math.round(pb),
-        hasSufficientData: false
-      };
-    }
-
     const allRepROMs = exerciseSets.flatMap(s => s.reps.map(r => r.primaryROM));
     const mean = allRepROMs.reduce((a, b) => a + b, 0) / allRepROMs.length;
     const variance = allRepROMs.reduce((a, b) => a + Math.pow(b - mean, 2), 0) / allRepROMs.length;
@@ -51,9 +34,9 @@ export class PersonalBaselineEngine {
       totalSessions: exerciseSets.length,
       totalReps,
       baselineROMMean: Math.round(mean),
-      baselineROMStdDev: Math.max(1.5, Math.round(stdDev * 10) / 10),
+      baselineROMStdDev: Math.round(stdDev * 10) / 10,
       personalBestROM: Math.round(pb),
-      hasSufficientData: true
+      hasSufficientData: exerciseSets.length >= 3 && totalReps >= 25
     };
   }
 
@@ -62,6 +45,9 @@ export class PersonalBaselineEngine {
     isConsistent: boolean;
     insight: string;
   } {
+    if (!baseline.hasSufficientData || set.reps.length === 0) {
+      return { isPersonalBest: false, isConsistent: false, insight: 'Utilstrækkeligt grundlag: mindst 3 sæt og 25 gentagelser kræves.' };
+    }
     const isExtension = this.isExtensionExercise(set.exercise);
     const setBestROM = isExtension
       ? Math.max(...set.reps.map(r => r.primaryROM))

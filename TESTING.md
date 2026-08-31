@@ -57,3 +57,31 @@ Version-controlled synthetic time-series data ensuring deterministic regression 
 - [ ] Post-set analysis completes in $< 2.0$ seconds for a 45-second recording
 - [ ] Memory footprint remains $< 150\text{ MB}$ across 5 consecutive sets
 - [ ] Zero thermal throttling warnings during a standard session
+
+## Web regression coverage — functional review (2026-08-31)
+
+The canonical web runtime is tested from `web` with `npm test` and `npm run build`.
+`src/tests/reviewRegression.test.tsx` covers the complete 3D smoothing/segmentation
+path, aspect-correct 2D fallback, missing secondary measurements, extension-exercise
+trends, insufficient baseline display, actual zoom settings, and IndexedDB history
+beyond 50 sets including migration of the legacy localStorage cache. Storage tests
+use fake-indexeddb; component checks render actual React components to HTML.
+
+History writes are acknowledged only after the IndexedDB transaction commits.
+The app keeps the result screen open on a failed save. Temporary video URLs are
+never persisted. Legacy localStorage data is retained until migration commits.
+
+The change index is a heuristic comparison of angle and duration across sets of
+the same exercise, not a physiological fatigue measurement. A single set or mixed
+exercises yields no index. Baseline dispersion is observed rather than floored;
+UI baseline claims require at least 3 sets and 25 reps.
+
+Camera zoom controls reflect track capabilities and observed settings; there is
+no promise that Safari exposes an ultra-wide lens. Real iPhone/Safari capture,
+AirPods, camera angles, video timing, thermal behavior and offline restart still
+require field testing. Passing synthetic and DOM tests is not empirical proof.
+
+A mounted jsdom/React test exercises the actual save buttons: duplicate clicks
+make one write, rejection leaves the result available, and retry reaches summary.
+When IndexedDB cannot open, the legacy cache remains readable, but is explicitly
+marked incomplete: baseline screens hide their claims and provide a retry.

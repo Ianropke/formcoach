@@ -116,7 +116,7 @@ export class PoseLandmarkerService {
         }
       }
 
-      return this.mapLandmarksToPoseFrame(rawLandmarks, rawWorldLandmarks, timestampMs / 1000);
+      return { ...this.mapLandmarksToPoseFrame(rawLandmarks, rawWorldLandmarks, timestampMs / 1000), aspectRatio: videoElement.videoWidth / videoElement.videoHeight };
     } catch (err) {
       this.droppedFrameCount++;
       console.warn('MediaPipe frame detection error:', err);

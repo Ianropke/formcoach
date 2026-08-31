@@ -7,12 +7,14 @@ import { Trophy, ArrowLeft, CheckCircle2, Flame } from 'lucide-react';
 interface Props {
   sets: RecordedSet[];
   allHistory: RecordedSet[];
+  historyComplete?: boolean;
   onDone: () => void;
 }
 
 export const WorkoutSummaryView: React.FC<Props> = ({
   sets,
   allHistory,
+  historyComplete = true,
   onDone
 }) => {
   const primaryExercise = sets[0]?.exercise || 'bicepsCurl';
@@ -45,23 +47,23 @@ export const WorkoutSummaryView: React.FC<Props> = ({
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-neutral-400">
             <Flame className="w-4 h-4 text-orange-400" />
-            <span>UDMATTELSESINDEKS</span>
+            <span>ÆNDRING MELLEM SÆT</span>
           </div>
           <div className="text-xs font-black text-[#00E676]">
-            {sessionAnalysis.fatigueIndex < 35 ? 'LAV UDMATTELSE' : sessionAnalysis.fatigueIndex < 70 ? 'MODERAT UDMATTELSE' : 'HØJ UDMATTELSE'}
+            {sessionAnalysis.fatigueIndex === null ? 'UTILSTRÆKKELIGT GRUNDLAG' : 'HEURISTISK INDEKS'}
           </div>
         </div>
 
         <div className="flex items-baseline gap-2 mb-2">
-          <div className="text-4xl font-black text-white">{sessionAnalysis.fatigueIndex}</div>
-          <div className="text-xs text-neutral-400 font-semibold">/ 100 Samlet belastning</div>
+          <div className="text-4xl font-black text-white">{sessionAnalysis.fatigueIndex ?? '—'}</div>
+          <div className="text-xs text-neutral-400 font-semibold">/ 100 · Ikke målt udmattelse</div>
         </div>
 
         {/* Progress Bar */}
         <div className="w-full h-2.5 bg-neutral-900 rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-[#00E676] via-yellow-400 to-red-500 rounded-full transition-all duration-1000"
-            style={{ width: `${Math.min(100, Math.max(10, sessionAnalysis.fatigueIndex))}%` }}
+            style={{ width: `${sessionAnalysis.fatigueIndex ?? 0}%` }}
           />
         </div>
       </div>
@@ -75,7 +77,7 @@ export const WorkoutSummaryView: React.FC<Props> = ({
           </span>
         </div>
         <div className="text-xs font-semibold text-neutral-200">
-          Din personlige baseline standard for {exerciseDef.name} er ~{baseline.baselineROMMean}° (±{baseline.baselineROMStdDev}°).
+          {!historyComplete ? 'Baseline utilgængelig: historikarkivet kunne ikke læses.' : baseline.hasSufficientData ? `Din baseline er ~${baseline.baselineROMMean}° (±${baseline.baselineROMStdDev}°).` : `Etablerer baseline: ${baseline.totalSessions}/3 sæt og ${baseline.totalReps}/25 gentagelser. Endnu utilstrækkeligt grundlag.`}
         </div>
       </div>
 
@@ -103,7 +105,7 @@ export const WorkoutSummaryView: React.FC<Props> = ({
               </div>
 
               <div className="text-xs font-extrabold text-[#00E676]">
-                {s.qualityScore}% Score
+                {s.qualityScore === null ? 'Delvis måling' : `${s.qualityScore}% Score`}
               </div>
             </div>
           ))}

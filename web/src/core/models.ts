@@ -118,6 +118,7 @@ export type JointName =
 export interface PoseFrame {
   timestamp: number;
   joints: Partial<Record<JointName, Point2D>>;
+  aspectRatio?: number; // Video width / height for normalized 2D fallback geometry
   worldJoints?: Partial<Record<JointName, Point3D>>; // Metric 3D world landmarks from MediaPipe
   confidence: number;
 }
@@ -144,7 +145,7 @@ export interface FormObservation {
   affectedReps: number[];
 }
 
-export type FormStabilityStatus = 'STRICT_STABILITY' | 'MODERATE_VARIANCE' | 'HIGH_DEVIATION';
+export type FormStabilityStatus = 'STRICT_STABILITY' | 'MODERATE_VARIANCE' | 'HIGH_DEVIATION' | 'INSUFFICIENT_DATA';
 
 export interface SetAnalysis {
   overallScore: number;
@@ -152,6 +153,7 @@ export interface SetAnalysis {
   consistencyScore: number;
   tempoScore: number;
   symmetryScore?: number;
+  secondaryMetricsAvailable?: boolean;
   primaryObservation: string;
   observations: FormObservation[];
   repCount: number;
@@ -188,7 +190,7 @@ export interface RecordedSet {
 export interface WorkoutSessionAnalysis {
   totalSets: number;
   totalReps: number;
-  fatigueIndex: number; // 0 - 100
+  fatigueIndex: number | null; // 0 - 100
   romTrend: 'stable' | 'degrading' | 'improving';
   tempoTrend: 'stable' | 'slowing' | 'accelerating';
   sessionObservations: FormObservation[];
@@ -197,7 +199,7 @@ export interface WorkoutSessionAnalysis {
     repCount: number;
     meanROM: number;
     meanDuration: number;
-    qualityScore: number;
+    qualityScore: number | null;
   }[];
 }
 

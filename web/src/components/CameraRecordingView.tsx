@@ -2,7 +2,8 @@ import React, { useRef, useEffect, useState } from 'react';
 import { ExerciseType, CameraViewType, EXERCISES, PoseFrame, RecordedSet } from '../core/models';
 import { getAnalyzerForExercise } from '../core/analyzers/exerciseAnalyzers';
 import { PoseSmoother } from '../core/poseSmoother';
-import { AngleCalculator } from '../core/angleCalculator';
+import { readZoom, applyZoom } from '../core/cameraZoom';
+import { getActiveAngle } from '../core/jointAngles';
 import { CameraQualityGate, CameraQualityResult } from '../core/qualityGate';
 import { PoseLandmarkerService } from '../vision/poseLandmarkerService';
 import { AudioCoachService } from '../core/audio/audioCoachService';
@@ -26,7 +27,10 @@ export const CameraRecordingView: React.FC<Props> = ({
   const canvasRef = useRef<HTMLCanvasElement>(null);
 
   const [facingMode, setFacingMode] = useState<'user' | 'environment'>('environment');
-  const [zoomLevel, setZoomLevel] = useState<0.5 | 1 | 2>(1);
+  const [zoomLevel, setZoomLevel] = useState<number | null>(null);
+  const [zoomLevels, setZoomLevels] = useState<number[]>([]);
+  const [zoomBusy, setZoomBusy] = useState(false);
+  const [zoomError, setZoomError] = useState<string | null>(null);
   const [showTelemetry, setShowTelemetry] = useState(false);
   const [isMuted, setIsMuted] = useState(false);
   const [telemetry, setTelemetry] = useState<CameraTelemetry>({
@@ -83,24 +87,21 @@ export const CameraRecordingView: React.FC<Props> = ({
   };
 
   // Dynamic Lens / Hardware Zoom Switching
-  const handleZoomChange = async (level: 0.5 | 1 | 2) => {
-    setZoomLevel(level);
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      const track = stream.getVideoTracks()[0];
-      if (track) {
-        try {
-          const capabilities: any = (track as any).getCapabilities ? (track as any).getCapabilities() : {};
-          if (capabilities.zoom) {
-            const targetZoom = level === 0.5 ? Math.max(capabilities.zoom.min || 1, 0.5) : level === 2 ? Math.min(capabilities.zoom.max || 2, 2) : 1;
-            await (track as any).applyConstraints({
-              advanced: [{ zoom: targetZoom }]
-            });
-          }
-        } catch (e) {
-          console.warn('Hardware zoom adjustment bypassed:', e);
-        }
-      }
+  const handleZoomChange = async (level: number) => {
+    const stream = videoRef.current?.srcObject as MediaStream | null;
+    const track = stream?.getVideoTracks()[0];
+    if (!track || zoomBusy) return;
+    setZoomBusy(true);
+    setZoomError(null);
+    try {
+      const actual = await applyZoom(track, level);
+      if (videoRef.current?.srcObject !== stream) return;
+      setZoomLevel(actual);
+      if (actual !== level) setZoomError('Kameraet kunne ikke anvende den ønskede zoom.');
+    } catch {
+      if (videoRef.current?.srcObject === stream) setZoomError('Zoom kunne ikke ændres.');
+    } finally {
+      setZoomBusy(false);
     }
   };
 
@@ -119,6 +120,9 @@ export const CameraRecordingView: React.FC<Props> = ({
   useEffect(() => {
     let stream: MediaStream | null = null;
     let isCancelled = false;
+    setZoomLevels([]);
+    setZoomLevel(null);
+    setZoomError(null);
 
     async function init() {
       try {
@@ -148,6 +152,9 @@ export const CameraRecordingView: React.FC<Props> = ({
           videoRef.current.srcObject = stream;
           await videoRef.current.play();
           setHasCameraAccess(true);
+          const zoom = readZoom(stream.getVideoTracks()[0]);
+          setZoomLevels(zoom.levels);
+          setZoomLevel(zoom.current);
         }
       } catch (err) {
         console.error('Camera or MediaPipe initialization error:', err);
@@ -208,7 +215,7 @@ export const CameraRecordingView: React.FC<Props> = ({
               setQualityGate(quality);
 
               // Compute real measured joint angle
-              const angle = computeActiveAngle(rawPose, exercise);
+              const angle = getActiveAngle(rawPose, exercise);
               if (angle !== null) {
                 setLiveAngle(Math.round(angle));
 
@@ -263,6 +270,7 @@ export const CameraRecordingView: React.FC<Props> = ({
                   timestamp: (Date.now() - startTimeRef.current) / 1000,
                   joints: rawPose.joints,
                   worldJoints: rawPose.worldJoints,
+                  aspectRatio: rawPose.aspectRatio,
                   confidence: rawPose.confidence
                 };
                 recordedFramesRef.current.push(recordedFrame);
@@ -514,9 +522,13 @@ export const CameraRecordingView: React.FC<Props> = ({
         <div className="flex items-center gap-2">
           {/* Ultra-Wide (0.5x) / Zoom Pill */}
           <div className="flex items-center bg-black/60 backdrop-blur-md rounded-xl p-0.5 border border-white/10 text-[11px] font-black">
-            {([0.5, 1, 2] as const).map(level => (
+            {zoomLevels.length === 0 && <span className="px-2" title="Browseren tilbyder ikke verificerbar kamerazoom. Ultravidvinkel er ikke aktiveret af appen.">Zoom —</span>}
+            {zoomLevels.map(level => (
               <button
                 key={level}
+                disabled={zoomBusy || phase !== 'setup'}
+                aria-pressed={zoomLevel === level}
+                aria-label={`Kamerazoom ${level} gange`}
                 onClick={() => handleZoomChange(level)}
                 className={`px-2.5 py-1 rounded-lg transition-colors ${
                   zoomLevel === level
@@ -574,6 +586,7 @@ export const CameraRecordingView: React.FC<Props> = ({
         </div>
       </div>
 
+      {zoomError && <p role="status" className="relative z-10 px-4 text-sm text-amber-300">{zoomError}</p>}
       {/* Real-Time Telemetry HUD */}
       {showTelemetry && (
         <div className="relative z-10 mx-4 mb-2 p-3 rounded-2xl bg-black/85 backdrop-blur-md border border-white/15 text-white text-xs font-mono grid grid-cols-2 gap-2 shadow-2xl">
@@ -722,28 +735,6 @@ export const CameraRecordingView: React.FC<Props> = ({
     </div>
   );
 };
-
-function computeActiveAngle(frame: PoseFrame, exercise: ExerciseType): number | null {
-  const joints = frame.joints;
-
-  if (exercise === 'squat' || exercise === 'legPress') {
-    const hip = joints.left_hip || joints.right_hip;
-    const knee = joints.left_knee || joints.right_knee;
-    const ankle = joints.left_ankle || joints.right_ankle;
-    if (hip && knee && ankle) {
-      return AngleCalculator.angle2D(hip, knee, ankle);
-    }
-  } else {
-    // Upper body (curls, pushdown, press)
-    const s = joints.left_shoulder || joints.right_shoulder;
-    const e = joints.left_elbow || joints.right_elbow;
-    const w = joints.left_wrist || joints.right_wrist;
-    if (s && e && w) {
-      return AngleCalculator.angle2D(s, e, w);
-    }
-  }
-  return null;
-}
 
 function drawDetectedSkeleton(ctx: CanvasRenderingContext2D, width: number, height: number, frame: PoseFrame) {
   ctx.strokeStyle = '#00E676';

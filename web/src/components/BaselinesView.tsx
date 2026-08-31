@@ -72,7 +72,7 @@ export const BaselinesView: React.FC<Props> = ({ history, onBack }) => {
                 <div className="p-2 bg-neutral-900/50 rounded-xl">
                   <div className="text-[10px] uppercase font-bold text-neutral-400">Spredning (σ)</div>
                   <div className={`text-sm font-black ${setsCount > 0 ? 'text-[#00E676]' : 'text-neutral-500'}`}>
-                    {setsCount > 0 ? `±${baseline.baselineROMStdDev}°` : '—'}
+                    {baseline.hasSufficientData ? `±${baseline.baselineROMStdDev}°` : '—'}
                   </div>
                 </div>
               </div>
@@ -82,7 +82,7 @@ export const BaselinesView: React.FC<Props> = ({ history, onBack }) => {
                 {setsCount === 0
                   ? 'Ingen sæt registreret endnu'
                   : !baseline.hasSufficientData
-                  ? `Etablerer baseline (${setsCount}/3 sæt gennemført)`
+                  ? `Etablerer baseline (${setsCount}/3 sæt, ${baseline.totalReps}/25 reps)`
                   : '✓ Stabil baseline etableret'}
               </div>
             </div>

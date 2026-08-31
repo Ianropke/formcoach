@@ -1,4 +1,4 @@
-import { PoseFrame, JointName, Point2D } from './models';
+import { PoseFrame, JointName, Point2D, Point3D } from './models';
 
 export class PoseSmoother {
   private alpha: number;
@@ -22,6 +22,18 @@ export class PoseSmoother {
 
     for (let i = 0; i < interpolated.length; i++) {
       const current = interpolated[i];
+      const newWorldJoints: Partial<Record<JointName, Point3D>> = {};
+      const previousWorld = smoothed[i - 1]?.worldJoints;
+      for (const key of Object.keys(current.worldJoints ?? {}) as JointName[]) {
+        const point = current.worldJoints![key]!;
+        const previous = previousWorld?.[key];
+        newWorldJoints[key] = previous && previous.score > 0.4 && point.score > 0.4 ? {
+          x: this.alpha * point.x + (1 - this.alpha) * previous.x,
+          y: this.alpha * point.y + (1 - this.alpha) * previous.y,
+          z: this.alpha * (point.z ?? 0) + (1 - this.alpha) * (previous.z ?? 0),
+          score: point.score
+        } : { ...point };
+      }
       const newJoints: Partial<Record<JointName, Point2D>> = {};
 
       for (const jointKey in current.joints) {
@@ -45,6 +57,8 @@ export class PoseSmoother {
       previousJoints = newJoints;
       smoothed.push({
         timestamp: current.timestamp,
+        aspectRatio: current.aspectRatio,
+        worldJoints: current.worldJoints ? newWorldJoints : undefined,
         joints: newJoints,
         confidence: current.confidence
       });
@@ -55,7 +69,7 @@ export class PoseSmoother {
 
   private interpolateDropouts(frames: PoseFrame[]): PoseFrame[] {
     if (frames.length < 3) return frames;
-    const result: PoseFrame[] = [...frames];
+    const result: PoseFrame[] = frames.map(f => ({ ...f, joints: { ...f.joints } }));
 
     const jointKeys: JointName[] = [
       'left_shoulder', 'right_shoulder',

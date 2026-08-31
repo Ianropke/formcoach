@@ -1,3 +1,4 @@
+import { PersonalBaselineEngine } from './baselineEngine';
 import { RecordedSet, WorkoutSessionAnalysis, FormObservation } from './models';
 
 export class CrossSetFatigueAnalyzer {
@@ -6,7 +7,7 @@ export class CrossSetFatigueAnalyzer {
       return {
         totalSets: 0,
         totalReps: 0,
-        fatigueIndex: 0,
+        fatigueIndex: null,
         romTrend: 'stable',
         tempoTrend: 'stable',
         sessionObservations: [],
@@ -20,14 +21,14 @@ export class CrossSetFatigueAnalyzer {
       repCount: s.reps.length,
       meanROM: s.analysis.meanROM,
       meanDuration: s.analysis.meanDuration,
-      qualityScore: s.analysis.overallScore
+      qualityScore: s.analysis.secondaryMetricsAvailable === false ? null : s.analysis.overallScore
     }));
 
-    if (sets.length === 1) {
+    if (sets.length === 1 || sets.some(s => s.exercise !== sets[0].exercise)) {
       return {
-        totalSets: 1,
+        totalSets: sets.length,
         totalReps,
-        fatigueIndex: 12,
+        fatigueIndex: null,
         romTrend: 'stable',
         tempoTrend: 'stable',
         sessionObservations: [],
@@ -37,13 +38,13 @@ export class CrossSetFatigueAnalyzer {
 
     const firstROM = sets[0].analysis.meanROM;
     const lastROM = sets[sets.length - 1].analysis.meanROM;
-    const romChangePct = firstROM > 0 ? ((lastROM - firstROM) / firstROM) * 100 : 0;
+    const romChangePct = firstROM > 0 ? ((lastROM - firstROM) / firstROM) * 100 * (PersonalBaselineEngine.isExtensionExercise(sets[0].exercise) ? -1 : 1) : 0;
 
     const firstTempo = sets[0].analysis.meanDuration;
     const lastTempo = sets[sets.length - 1].analysis.meanDuration;
     const tempoChangePct = firstTempo > 0 ? ((lastTempo - firstTempo) / firstTempo) * 100 : 0;
 
-    let fatigueIndex = 15;
+    let fatigueIndex = 0;
     let romTrend: 'stable' | 'degrading' | 'improving' = 'stable';
     let tempoTrend: 'stable' | 'slowing' | 'accelerating' = 'stable';
     const observations: FormObservation[] = [];
@@ -54,13 +55,15 @@ export class CrossSetFatigueAnalyzer {
       fatigueIndex += Math.min(45, romChangePct * 2.2);
       observations.push({
         id: 'session.cross_set.rom_decay',
-        title: 'Multi-Set Depth Decay',
-        detail: `Range of motion degraded by ~${Math.round(romChangePct)}% between Set 1 and Set ${sets.length}.`,
+        title: 'Bevægelsesbanen aftog',
+        detail: `Slutvinklen ændrede sig ~${Math.round(romChangePct)}% i retning af mindre bevægelsesbane fra sæt 1 til sæt ${sets.length}.`,
         evidence: `Set 1 achieved ${Math.round(firstROM)}° vs Set ${sets.length} reaching ${Math.round(lastROM)}°.`,
         severity: 'warning',
         affectedReps: []
       });
     }
+
+    if (romChangePct <= -10) romTrend = 'improving';
 
     // Evaluate tempo slowdown
     if (tempoChangePct >= 18) {
@@ -68,20 +71,20 @@ export class CrossSetFatigueAnalyzer {
       fatigueIndex += 20;
       observations.push({
         id: 'session.cross_set.tempo_slowdown',
-        title: 'Concentric Tempo Slowdown',
-        detail: `Repetition tempo slowed down by ~${Math.round(tempoChangePct)}% in later sets due to fatigue.`,
+        title: 'Langsommere gentagelser',
+        detail: `Gentagelsernes varighed steg ~${Math.round(tempoChangePct)}%. Årsagen kan ikke bestemmes ud fra vinkler og tid alene.`,
         evidence: `Average duration grew from ${firstTempo.toFixed(1)}s to ${lastTempo.toFixed(1)}s.`,
         severity: 'info',
         affectedReps: []
       });
     }
 
-    if (romTrend === 'stable' && sets.length >= 3) {
+    if (romTrend === 'stable' && tempoTrend === 'stable' && sets.length >= 3 && sets.every(s => Math.abs(s.analysis.meanROM - firstROM) <= firstROM * 0.05 && Math.abs(s.analysis.meanDuration - firstTempo) <= firstTempo * 0.05)) {
       observations.push({
         id: 'session.cross_set.high_endurance',
-        title: 'Excellent Work Capacity',
-        detail: `Maintained uniform movement depth and tempo across all ${sets.length} sets.`,
-        evidence: `Under 5% variance detected across sets.`,
+        title: 'Ensartede sæt',
+        detail: `Bevægelsesbane og tempo var ensartede på tværs af ${sets.length} sæt.`,
+        evidence: `Alle sæt lå inden for 5% af første sæts vinkel og varighed.`,
         severity: 'positive',
         affectedReps: []
       });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { ExerciseType, CameraViewType, RecordedSet } from './core/models';
 import { LocalStorageManager } from './core/storage';
 import { ExerciseSelector } from './components/ExerciseSelector';
@@ -19,8 +19,26 @@ export default function App() {
   const [currentResultSet, setCurrentResultSet] = useState<RecordedSet | null>(null);
   const [history, setHistory] = useState<RecordedSet[]>([]);
 
+  const [storageError, setStorageError] = useState<string | null>(null);
+  const [historyLoaded, setHistoryLoaded] = useState(false);
+  const [historyComplete, setHistoryComplete] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const savingRef = useRef(false);
+
+  const loadHistory = async () => {
+    try {
+      const result = await LocalStorageManager.getHistory();
+      setHistory(result.sets);
+      setHistoryComplete(result.complete);
+      setStorageError(result.complete ? null : 'Historikarkivet er utilgængeligt. Kun en eventuel ældre cache er læst; baselines er derfor skjult. Prøv igen.');
+      setHistoryLoaded(true);
+    } catch {
+      setStorageError('Historikken kunne ikke læses. Eksisterende data er bevaret. Prøv igen.');
+    }
+  };
+
   useEffect(() => {
-    setHistory(LocalStorageManager.getRecordedSets());
+    void loadHistory();
 
     // Allow automated testing harness to preview flows
     const handleTestFlow = (e: any) => {
@@ -48,26 +66,26 @@ export default function App() {
     setActiveFlow('results');
   };
 
-  const handleSaveAndLogNext = (finalSet?: RecordedSet) => {
+  const saveResult = async (next: 'recording' | 'summary', finalSet?: RecordedSet) => {
     const setToSave = finalSet || currentResultSet;
-    if (setToSave) {
-      LocalStorageManager.saveSet(setToSave);
-      setActiveSessionSets(prev => [...prev, setToSave]);
-      setHistory(LocalStorageManager.getRecordedSets());
+    if (!setToSave || savingRef.current) return;
+    savingRef.current = true;
+    setIsSaving(true);
+    if (historyComplete) setStorageError(null);
+    try {
+      await LocalStorageManager.saveSet(setToSave);
+      setActiveSessionSets(prev => [...prev.filter(s => s.id !== setToSave.id), setToSave]);
+      setHistory(prev => [setToSave, ...prev.filter(s => s.id !== setToSave.id)]);
+      setActiveFlow(next);
+    } catch {
+      setStorageError('Sættet blev ikke gemt. Det ligger stadig her, så du kan prøve igen.');
+    } finally {
+      savingRef.current = false;
+      setIsSaving(false);
     }
-    setActiveFlow('recording');
   };
-
-  const handleSaveAndFinish = (finalSet?: RecordedSet) => {
-    const setToSave = finalSet || currentResultSet;
-    if (setToSave) {
-      LocalStorageManager.saveSet(setToSave);
-      const updated = [...activeSessionSets, setToSave];
-      setActiveSessionSets(updated);
-      setHistory(LocalStorageManager.getRecordedSets());
-    }
-    setActiveFlow('summary');
-  };
+  const handleSaveAndLogNext = (set?: RecordedSet) => { void saveResult('recording', set); };
+  const handleSaveAndFinish = (set?: RecordedSet) => { void saveResult('summary', set); };
 
   const handleDiscard = () => {
     // Drop in-memory set completely and revoke temporary video blob URL without writing to storage
@@ -96,10 +114,14 @@ export default function App() {
 
   return (
     <div className="flex flex-col h-screen w-screen bg-black text-white select-none overflow-hidden">
+      {storageError && <div role="alert" className="p-3 text-sm bg-red-950 text-red-100">
+        {storageError}
+        {!historyComplete && <button className="ml-3 underline" onClick={() => void loadHistory()}>Prøv igen</button>}
+      </div>}
       {/* Active Flow Views */}
       <div className="flex-1 overflow-hidden">
-        {currentTab === 'baselines' ? (
-          <BaselinesView history={history} onBack={() => setCurrentTab('workout')} />
+        {!historyLoaded ? <p className="p-6">{storageError ? 'Historik er ikke tilgængelig.' : 'Indlæser historik…'}</p> : currentTab === 'baselines' ? (
+          historyComplete ? <BaselinesView history={history} onBack={() => setCurrentTab('workout')} /> : <p className="p-6">Baselines kræver adgang til hele historikken. {history.length} sæt findes i den tilgængelige cache.</p>
         ) : (
           <>
             {activeFlow === 'selector' && (
@@ -118,6 +140,7 @@ export default function App() {
             {activeFlow === 'results' && currentResultSet && (
               <ResultsView
                 set={currentResultSet}
+                isSaving={isSaving}
                 activeSetsCount={activeSessionSets.length}
                 onSaveAndLogNext={handleSaveAndLogNext}
                 onSaveAndFinish={handleSaveAndFinish}
@@ -129,6 +152,7 @@ export default function App() {
               <WorkoutSummaryView
                 sets={activeSessionSets}
                 allHistory={history}
+                historyComplete={historyComplete}
                 onDone={handleDoneSummary}
               />
             )}

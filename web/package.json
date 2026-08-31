@@ -8,7 +8,7 @@
     "build": "tsc -b && vite build",
     "lint": "oxlint",
     "preview": "vite preview",
-    "test": "tsx src/tests/testSuite.ts && tsx src/tests/goldenDataset.ts"
+    "test": "node --import tsx src/tests/testSuite.ts && node --import tsx src/tests/goldenDataset.ts && node --import tsx --test src/tests/reviewRegression.test.tsx"
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "^1.0.1",
@@ -27,6 +27,8 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.4",
     "@vitejs/plugin-react": "^6.1.0",
+    "fake-indexeddb": "^6.2.5",
+    "jsdom": "^29.1.1",
     "oxlint": "^1.79.0",
     "playwright": "^1.62.1",
     "tsx": "^4.23.12",

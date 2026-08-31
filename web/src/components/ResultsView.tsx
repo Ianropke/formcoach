@@ -6,6 +6,7 @@ import confetti from 'canvas-confetti';
 
 interface Props {
   set: RecordedSet;
+  isSaving?: boolean;
   activeSetsCount: number;
   onSaveAndLogNext: (finalSet?: RecordedSet) => void;
   onSaveAndFinish: (finalSet?: RecordedSet) => void;
@@ -14,6 +15,7 @@ interface Props {
 
 export const ResultsView: React.FC<Props> = ({
   set,
+  isSaving = false,
   activeSetsCount,
   onSaveAndLogNext,
   onSaveAndFinish,
@@ -27,7 +29,7 @@ export const ResultsView: React.FC<Props> = ({
 
   useEffect(() => {
     // Trigger confetti celebration on high quality set
-    if (activeSet.analysis.overallScore >= 90) {
+    if (activeSet.analysis.secondaryMetricsAvailable !== false && activeSet.analysis.overallScore >= 90) {
       confetti({
         particleCount: 60,
         spread: 70,
@@ -83,6 +85,7 @@ export const ResultsView: React.FC<Props> = ({
           </div>
         </div>
         <button
+          disabled={isSaving}
           onClick={onDiscard}
           className="flex items-center gap-1 text-xs font-bold text-red-400 bg-red-950/40 border border-red-500/20 px-3 py-1.5 rounded-xl hover:bg-red-950/70 transition-colors"
         >
@@ -150,6 +153,7 @@ export const ResultsView: React.FC<Props> = ({
           Gentagelser ({activeSet.reps.length})
         </span>
         <button
+          disabled={isSaving}
           onClick={() => handleDeleteRep(selectedRepIndex)}
           className="flex items-center gap-1 text-[10px] font-bold text-red-400 hover:text-red-300 transition-colors px-2 py-0.5 rounded-md bg-red-950/40 border border-red-500/20 active:scale-95"
           title={`Slet rep ${selectedRepIndex} fra dette sæt`}
@@ -226,14 +230,14 @@ export const ResultsView: React.FC<Props> = ({
             {activeSet.exercise === 'shoulderPress' ? 'Bilateral Asymmetri' : 'Skuldersvaj (Δθ)'}
           </div>
           <div className="text-2xl font-black text-white mt-1">
-            {activeSet.exercise === 'shoulderPress'
+            {activeSet.analysis.secondaryMetricsAvailable === false ? '—' : activeSet.exercise === 'shoulderPress'
               ? `~${Math.round(activeSet.analysis.meanAsymmetry || 0)}°`
               : activeSet.analysis.peakRelativeDrift !== undefined
               ? `Δ${Math.round(activeSet.analysis.peakRelativeDrift)}°`
               : activeSet.analysis.stabilityStatus === 'STRICT_STABILITY' ? 'Strikte' : 'Variabel'}
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5">
-            {activeSet.exercise === 'shoulderPress'
+            {activeSet.analysis.secondaryMetricsAvailable === false ? 'Utilstrækkelige ledmålinger' : activeSet.exercise === 'shoulderPress'
               ? '|Venstre - Højre| forskel'
               : activeSet.analysis.peakRelativeDrift !== undefined
               ? 'Maksimal afvigelse'
@@ -245,12 +249,12 @@ export const ResultsView: React.FC<Props> = ({
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
           <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Udmattelse / ROM-Fald</div>
           <div className={`text-2xl font-black mt-1 ${activeSet.analysis.earlyLateROMDelta && activeSet.analysis.earlyLateROMDelta >= 10 ? 'text-amber-400' : 'text-[#00E676]'}`}>
-            {activeSet.analysis.earlyLateROMDelta && activeSet.analysis.earlyLateROMDelta > 0
+            {activeSet.analysis.earlyLateROMDelta === undefined ? '—' : activeSet.analysis.earlyLateROMDelta > 0
               ? `+${Math.round(activeSet.analysis.earlyLateROMDelta)}%`
               : '0% Fald'}
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5">
-            {activeSet.analysis.earlyLateROMDelta && activeSet.analysis.earlyLateROMDelta >= 10
+            {activeSet.analysis.earlyLateROMDelta === undefined ? 'Ikke beregnet for dette sæt' : activeSet.analysis.earlyLateROMDelta >= 10
               ? 'Mindre dybde i slutningen'
               : 'Stabil dybde hele sættet'}
           </div>
@@ -260,6 +264,7 @@ export const ResultsView: React.FC<Props> = ({
       {/* Explicit Save Actions */}
       <div className="space-y-2 mt-auto">
         <button
+          disabled={isSaving}
           onClick={() => onSaveAndLogNext(activeSet)}
           className="w-full bg-[#00E676] hover:bg-[#00E676]/90 text-black font-extrabold text-base py-4 rounded-2xl flex items-center justify-center gap-2 shadow-lg shadow-[#00E676]/20 active:scale-[0.98] transition-transform"
         >
@@ -268,6 +273,7 @@ export const ResultsView: React.FC<Props> = ({
         </button>
 
         <button
+          disabled={isSaving}
           onClick={() => onSaveAndFinish(activeSet)}
           className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-bold text-sm py-3.5 rounded-2xl flex items-center justify-center gap-2 border border-white/10 active:scale-[0.98] transition-transform"
         >
