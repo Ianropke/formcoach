@@ -1,49 +1,25 @@
 # FormCoach — Product & Engineering Roadmap
 
-## Milestone Overview
+This roadmap applies to the canonical Web PWA in `web/`. The old native implementation is historical.
 
-```
-M0: Technical Foundation (Done)
- └── M1: Squat Biomechanics Engine (Active Focus)
-      └── M2: Generalize Analyzer & Biceps Curl
-           └── M3: Multi-Set Intelligence & Degradation Trends
-                └── M4: Longitudinal History & Personal Baseline
-                     └── M5: Catalog Expansion & Core ML Augmentation
-```
+## Current foundation
 
----
+- React/TypeScript PWA.
+- Local MediaPipe processing.
+- Five implemented exercise analyzers.
+- Setup-quality checks and primary-subject tracking.
+- IndexedDB history.
+- Personal baselines and across-set comparisons.
+- Deterministic regression tests.
 
-## Milestone Details
+See `docs/PROJECT_STATE.md` for current implementation status.
 
-### M0 — Technical Foundation
-- Native Swift Package & Xcode structure
-- AVFoundation CameraService & VideoRecorder
-- Apple Vision Pose extraction & coordinate normalization
-- Pose smoothing & gap interpolation
-- SwiftData models & local file persistence
-- Comprehensive testing harness
+## Next priorities
 
-### M1 — Squat Biomechanics & Analysis (Reference Implementation)
-- Squat-specific camera framing guide
-- Deterministic 5-state Squat rep segmenter
-- Kinematic metrics: Knee ROM, Rep Tempo, Torso incline, Consistency score
-- Early vs Late set fatigue / ROM degradation detection
-- Results screen with synchronized video + skeleton replay
-- Scrubbable repetition timeline
+1. Compare outputs with manually annotated real recordings and publish measured error rates.
+2. Keep measurements, configured targets, personal baselines, and externally verified findings distinct.
+3. Improve Safari/PWA reliability and camera failure handling.
+4. Measure robustness across camera views, distances, lighting, and occlusion.
+5. Expand exercise coverage only with explicit measurement requirements and tests.
 
-### M2 — Generalize Architecture & Biceps Curl
-- Prove `ExerciseAnalyzerProtocol` modularity on upper-body mechanics
-- Biceps curl segmenter & elbow ROM metrics
-- Shoulder swing / momentum cheat detection
-
-### M3 — Multi-Set Intelligence
-- Workout session aggregation (e.g. Set 1 vs Set 2 vs Set 3)
-- Multi-set fatigue trajectory analysis
-
-### M4 — Longitudinal History & Personal Baselines
-- Long-term movement consistency trends over weeks/months
-- Personalized baselines instead of arbitrary population norms
-
-### M5 — Catalog Expansion & Optional Core ML
-- Shoulder Press, Romanian Deadlift, Lunge
-- Learned movement quality embeddings (if high-quality labeled datasets exist)
+Automated tests and real-recording evidence remain separate gates.
