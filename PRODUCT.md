@@ -1,71 +1,45 @@
 # FormCoach — Product Specification
 
-## 1. Executive Summary
+FormCoach is an iPhone-first Web PWA for strength-training form analysis. The canonical runtime is the React/TypeScript application in `web/`, using MediaPipe Tasks Vision locally in the browser.
 
-**FormCoach** is a native iOS application designed for the iPhone (primary target: iPhone 17) that records strength-training exercises and analyzes exercise form locally using computer vision and deterministic biomechanics.
+## Core promise
 
-### Core Promise
-> *Put the iPhone down at the gym, record a set, and immediately receive an evidence-based analysis of repetitions, range of motion, tempo, symmetry, consistency, and observable form — without uploading the video to a paid AI service.*
+Record a set and receive immediate feedback on observable movement: repetitions, range of motion, tempo, symmetry, consistency, and changes across the set, without sending workout video to a cloud analysis service.
 
----
+## Product principles
 
-## 2. Core Value Proposition & Principles
+1. Web PWA, iPhone first.
+2. Local-first pose estimation and deterministic analysis.
+3. No paid AI inference required per workout.
+4. No account requirement or facial identification.
+5. Core metrics come from landmark geometry, timing, and deterministic state machines.
+6. The app reports visible movement and must not infer unmeasured internal states from camera data alone.
+7. Measurements, product heuristics, personal baselines, and field-validated claims remain distinguishable.
+8. Gym-ready controls and fast, glanceable feedback.
 
-1. **Native iOS & iPhone First**: Crafted in Swift and SwiftUI utilizing Apple's hardware-accelerated AVFoundation and Vision frameworks.
-2. **Local-First & Offline**: 100% of video processing, pose estimation, and biomechanics calculations execute on-device. Zero cloud requirement.
-3. **Zero Marginal Operating Cost**: 0 DKK / 0 USD per workout. No OpenAI, Gemini, Anthropic, or paid cloud inference APIs.
-4. **Privacy-First**: No account creation, no user tracking, no video uploads, no facial recognition or biometric profiling.
-5. **Deterministic Biomechanics**: Movement interpretation is derived from vector geometry, kinematics, and calibrated state machines—not generative AI hallucinations.
-6. **Scientific Humility**: The app assesses visible movement kinematics. It does not pretend to diagnose medical injuries or calculate internal joint loads.
-7. **Gym-Ready Glanceability**: Designed for noisy commercial gyms (e.g. PureGym). No mandatory audio cues, oversized touch targets, and high-contrast visual statuses.
+## Coaching semantics
 
----
+FormCoach separates four kinds of information:
 
-## 3. Product Boundaries (What FormCoach is NOT)
+- **Observed measurement** — joint angles, repetition count, timing, asymmetry, consistency.
+- **Derived comparison** — change within a set or relative to a personal baseline.
+- **Product heuristic/target** — a configured reference used to classify or coach an exercise.
+- **Empirically field-validated claim** — reserved for findings supported by real recordings and measured error rates.
 
-- NOT a generic fitness tracker or workout planner
-- NOT a calorie or nutrition counter
-- NOT a social media network or video sharing portal
-- NOT an LLM conversational chatbot
-- NOT an injury diagnostic tool or medical device
-- NOT a cloud-dependent SaaS subscription
+A heuristic threshold may trigger feedback, but it must be presented as a product/coaching target rather than a universal biological rule.
 
----
+Prefer wording such as: `ROM decreased by 11% in the final repetitions; the cause cannot be determined from pose data alone.`
 
-## 4. User Journey
+## Current exercise scope
 
-```mermaid
-journey
-    title FormCoach Workout Flow
-    section Setup
-      Select Exercise: 5: Athlete
-      Position Camera: 4: Athlete
-      Verify Framing & Readiness: 5: FormCoach
-    section Performance
-      Visual 3s Countdown: 5: FormCoach
-      Perform Set (10-12 reps): 5: Athlete
-      Stop Recording: 5: Athlete
-    section Analysis
-      Deterministic Pose & Rep Analysis: 5: FormCoach (< 1.5s)
-      Inspect ROM & Degradation: 5: Athlete
-      Replay Video with Skeleton Overlay: 5: Athlete
-      Store in Local History: 5: FormCoach
-```
+The PWA currently implements biceps curl, triceps pushdown, squat, leg press, and shoulder press. Implementation support is not the same as field validation. Current evidence state is tracked in `docs/PROJECT_STATE.md`.
 
----
+## Product success criteria
 
-## 5. M1 Feature Scope (Squat Reference Implementation)
+FormCoach should help answer:
 
-- **Exercise Selection**: Bodyweight & Goblet Squat.
-- **Camera Setup Coach**: Visual validation of full-body visibility (head, hips, knees, ankles) and camera angle suitability.
-- **Gym Recording Mode**: Large REC indicators, elapsed time, optional 60fps live skeleton overlay.
-- **Automated Rep Segmentation**: 5-state hysteresis state machine (`Standing`, `Descending`, `Bottom`, `Ascending`, `Standing`).
-- **Kinematic Metrics**:
-  - Repetition Count
-  - Knee Range of Motion (flexion angle at bottom)
-  - Rep Tempo (eccentric, bottom pause, concentric duration)
-  - Movement Consistency (early-set vs late-set ROM degradation)
-  - Torso Angle & Hip Translation proxy
-  - Tracking Confidence Score
-- **Video & Pose Replay**: Scrubbable playback with joint skeleton and angle overlays, with single-tap navigation to individual repetitions.
-- **Local Persistence**: SwiftData historical log with cascade file cleanup.
+- Did it detect the repetitions actually performed?
+- What ROM, tempo, symmetry, and consistency did the camera capture?
+- Did those measurements change within the set or across recent sets?
+- Was signal quality adequate for the displayed measurement?
+- Which feedback is directly measured, which is heuristic, and which remains unvalidated in real-world conditions?
