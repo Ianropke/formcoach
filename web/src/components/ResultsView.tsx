@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { RecordedSet, EXERCISES, ExerciseType } from '../core/models';
 import { getAnalyzerForExercise } from '../core/analyzers/exerciseAnalyzers';
-import { Check, Plus, BarChart3, Trash2, Video, Eye, Play, X } from 'lucide-react';
+import { Check, Plus, BarChart3, Trash2, Video, Eye, X } from 'lucide-react';
 import confetti from 'canvas-confetti';
 
 interface Props {
@@ -193,7 +193,7 @@ export const ResultsView: React.FC<Props> = ({
       <div className="p-3.5 bg-neutral-950 rounded-2xl border border-[#00E676]/30 mb-3">
         <div className="flex items-center gap-1.5 text-[11px] font-black text-[#00E676] tracking-wider uppercase mb-1">
           <Check className="w-3.5 h-3.5" />
-          <span>VIGTIGSTE OBSERVARING</span>
+          <span>VIGTIGSTE OBSERVATION</span>
         </div>
         <p className="text-xs font-semibold leading-relaxed text-neutral-200">
           {activeSet.analysis.primaryObservation}
@@ -224,39 +224,39 @@ export const ResultsView: React.FC<Props> = ({
           </div>
         </div>
 
-        {/* Card 3: Kinematic Stability / Relative Drift / Bilateral Asymmetry */}
+        {/* Card 3: Kinematic Stability / Relative Drift / Bilateral Difference */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
           <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-            {activeSet.exercise === 'shoulderPress' ? 'Bilateral Asymmetri' : 'Skuldersvaj (Δθ)'}
+            {activeSet.exercise === 'shoulderPress' ? 'Bilateral forskel' : 'Relativ skulderbevægelse'}
           </div>
           <div className="text-2xl font-black text-white mt-1">
             {activeSet.analysis.secondaryMetricsAvailable === false ? '—' : activeSet.exercise === 'shoulderPress'
               ? `~${Math.round(activeSet.analysis.meanAsymmetry || 0)}°`
               : activeSet.analysis.peakRelativeDrift !== undefined
               ? `Δ${Math.round(activeSet.analysis.peakRelativeDrift)}°`
-              : activeSet.analysis.stabilityStatus === 'STRICT_STABILITY' ? 'Strikte' : 'Variabel'}
+              : activeSet.analysis.stabilityStatus === 'STRICT_STABILITY' ? 'Lav' : 'Variabel'}
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5">
             {activeSet.analysis.secondaryMetricsAvailable === false ? 'Utilstrækkelige ledmålinger' : activeSet.exercise === 'shoulderPress'
               ? '|Venstre - Højre| forskel'
               : activeSet.analysis.peakRelativeDrift !== undefined
-              ? 'Maksimal afvigelse'
-              : 'Stabil bane'}
+              ? 'Maksimal relativ afvigelse'
+              : 'Målt variation'}
           </div>
         </div>
 
-        {/* Card 4: Fatigue / Late-Set Decay */}
+        {/* Card 4: Late-set ROM change */}
         <div className="p-3 bg-neutral-950 rounded-2xl border border-white/5">
-          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Udmattelse / ROM-Fald</div>
+          <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">ROM-ændring sent i sættet</div>
           <div className={`text-2xl font-black mt-1 ${activeSet.analysis.earlyLateROMDelta && activeSet.analysis.earlyLateROMDelta >= 10 ? 'text-amber-400' : 'text-[#00E676]'}`}>
             {activeSet.analysis.earlyLateROMDelta === undefined ? '—' : activeSet.analysis.earlyLateROMDelta > 0
               ? `+${Math.round(activeSet.analysis.earlyLateROMDelta)}%`
-              : '0% Fald'}
+              : '0%'}
           </div>
           <div className="text-[11px] text-neutral-400 mt-0.5">
             {activeSet.analysis.earlyLateROMDelta === undefined ? 'Ikke beregnet for dette sæt' : activeSet.analysis.earlyLateROMDelta >= 10
-              ? 'Mindre dybde i slutningen'
-              : 'Stabil dybde hele sættet'}
+              ? 'Mindre målt dybde i slutningen; årsag ikke bestemt'
+              : 'Ingen større sen ROM-ændring målt'}
           </div>
         </div>
       </div>
