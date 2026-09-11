@@ -118,7 +118,6 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
         if (kneeAngle >= 155) {
           const duration = t - startTime;
           if (duration >= 0.8 && 170 - minKneeAngle >= 40) {
-            // Apply sub-frame parabolic vertex refinement
             const refinedMinAngle = interpolateParabolicExtremum(preMinAngle, minKneeAngle, kneeAngle, true);
 
             reps.push({
@@ -151,7 +150,7 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
 
     const observations: FormObservation[] = [];
 
-    // Early vs late ROM delta (fatigue tracking)
+    // Early vs late ROM comparison. This detects a movement change, not its cause.
     let delta = 0;
     if (reps.length >= 4) {
       const half = Math.min(4, Math.floor(reps.length / 2));
@@ -161,9 +160,9 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
       if (delta >= 10) {
         observations.push({
           id: 'squat.rom.decay',
-          title: 'Udmattelsestab i Dybde',
-          detail: `Squat-dybden faldt med ~${delta}% på de sidste gentagelser pga. muskeludmattelse.`,
-          evidence: `Sidste reps nåede kun ${Math.round(late)}° vs ${Math.round(early)}° i starten.`,
+          title: 'Mindre Dybde Sent i Sættet',
+          detail: `Den målte squat-dybde faldt med ~${delta}% på de sidste gentagelser. Årsagen kan ikke bestemmes ud fra bevægelsesdata alene.`,
+          evidence: `Sidste reps målte ${Math.round(late)}° mod ${Math.round(early)}° i starten.`,
           severity: 'warning',
           affectedReps: reps.slice(-half).map(r => r.index)
         });
@@ -173,18 +172,18 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
     if (romStats.mean <= 88) {
       observations.push({
         id: 'squat.depth.parallel',
-        title: 'Dyb & Parallel Squat',
-        detail: `Flot og stabil parallel dybde (~${Math.round(romStats.mean)}° ±${romStats.stdDev}°) over alle ${reps.length} gentagelser.`,
-        evidence: `Fuld dybde bekræftet matematisk.`,
+        title: 'Lav Knævinkel / Dyb Position',
+        detail: `Den målte knævinkel lå omkring ${Math.round(romStats.mean)}° (±${romStats.stdDev}°) over ${reps.length} gentagelser.`,
+        evidence: `Gennemsnittet lå ved eller under produktets 88°-reference.`,
         severity: 'positive',
         affectedReps: reps.map(r => r.index)
       });
     } else if (romStats.mean >= 105) {
       observations.push({
         id: 'squat.depth.shallow',
-        title: 'Manglende Dybde (Over Parallel)',
-        detail: `Squat-dybden stoppede ved ~${Math.round(romStats.mean)}° (over parallel). Sigt efter ≤88° for fuld aktivering.`,
-        evidence: `Knævinkel forblev over 105°.`,
+        title: 'Højere Knævinkel end Reference',
+        detail: `Den målte knævinkel lå omkring ${Math.round(romStats.mean)}°. Produktets nuværende dybdereference er ≤88°; den er en coachingreference, ikke et mål for muskelaktivering.`,
+        evidence: `Gennemsnitlig knævinkel var ${Math.round(romStats.mean)}° og lå over 105°.`,
         severity: 'warning',
         affectedReps: reps.map(r => r.index)
       });
@@ -204,7 +203,7 @@ export class SquatAnalyzer implements ExerciseAnalyzer {
       romScore,
       consistencyScore,
       tempoScore,
-      primaryObservation: observations[0]?.detail || `Solidt squat-sæt med ${reps.length} gentagelser ved ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) dybde.`,
+      primaryObservation: observations[0]?.detail || `Squat-sæt med ${reps.length} gentagelser ved ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) målt knævinkel.`,
       observations,
       repCount: reps.length,
       meanROM: romStats.mean,
@@ -239,9 +238,9 @@ export class LegPressAnalyzer implements ExerciseAnalyzer {
     const observations: FormObservation[] = [
       {
         id: 'legpress.knee.depth',
-        title: 'Kontrolleret Slædebevægelse',
-        detail: `Kontrolleret knæbøjning nåede ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) med jævn vending i slæden.`,
-        evidence: `Kontrolleret vendepunkt observeret over ${reps.length} gentagelser.`,
+        title: 'Knævinkel / Vendepunkt',
+        detail: `Den målte knævinkel nåede ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) over sættet.`,
+        evidence: `${reps.length} gentagelser indgik i målingen.`,
         severity: 'positive',
         affectedReps: reps.map(r => r.index)
       }
@@ -261,7 +260,7 @@ export class LegPressAnalyzer implements ExerciseAnalyzer {
       romScore,
       consistencyScore,
       tempoScore,
-      primaryObservation: `Flot benpres med ${reps.length} gentagelser ved ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) knæbøjning.`,
+      primaryObservation: `Benpres-sæt med ${reps.length} gentagelser ved ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) målt knævinkel.`,
       observations,
       repCount: reps.length,
       meanROM: romStats.mean,
@@ -391,18 +390,18 @@ export class BicepCurlAnalyzer implements ExerciseAnalyzer {
     } else if (peakDrift >= 15 || driftStats.mean >= 12) {
       observations.push({
         id: 'curl.shoulder.drift',
-        title: 'Skuldersving / Momentum Registreret',
-        detail: `Overarmen svang fremad med Δ${Math.round(peakDrift)}° ift. startpositionen. Lås albuerne mod kroppen for at isolere biceps.`,
-        evidence: `Skuldersvaj ≥15° registreret på reps: ${reps.filter(r => (r.secondaryROM || 0) >= 15).map(r => r.index).join(', ')}.`,
+        title: 'Relativ Skulderbevægelse Registreret',
+        detail: `Overarmens vinkel ændrede sig op til Δ${Math.round(peakDrift)}° i forhold til startpositionen.`,
+        evidence: `Relativ skulderbevægelse ≥15° blev målt på reps: ${reps.filter(r => (r.secondaryROM || 0) >= 15).map(r => r.index).join(', ')}.`,
         severity: 'warning',
         affectedReps: reps.filter(r => (r.secondaryROM || 0) >= 15).map(r => r.index)
       });
     } else {
       observations.push({
         id: 'curl.form.strict',
-        title: 'Strikt Biceps-Isolering',
-        detail: `Albuerne forblev fastlåst med under Δ${Math.round(peakDrift)}° skuldersvaj over alle ${reps.length} gentagelser.`,
-        evidence: `Strikt udførelse bekræftet ift. startposition.`,
+        title: 'Lav Relativ Skulderbevægelse',
+        detail: `Overarmens vinkel ændrede sig højst Δ${Math.round(peakDrift)}° over ${reps.length} gentagelser.`,
+        evidence: `Relativ skulderbevægelse forblev under den nuværende 15°-reference.`,
         severity: 'positive',
         affectedReps: reps.map(r => r.index)
       });
@@ -423,7 +422,7 @@ export class BicepCurlAnalyzer implements ExerciseAnalyzer {
       romScore,
       consistencyScore,
       tempoScore,
-      primaryObservation: observations[0]?.detail || `Bicep curls med ${reps.length} gentagelser ved ~${Math.round(romStats.mean)}° albuebøjning (Δ${Math.round(peakDrift)}° svaj).`,
+      primaryObservation: observations[0]?.detail || `Bicep curls med ${reps.length} gentagelser ved ~${Math.round(romStats.mean)}° albuebøjning (Δ${Math.round(peakDrift)}° relativ skulderbevægelse).`,
       observations,
       repCount: reps.length,
       meanROM: romStats.mean,
@@ -554,18 +553,18 @@ export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
     } else if (peakDrift >= 16) {
       observations.push({
         id: 'triceps.elbow.drift',
-        title: 'Fremadrettet Albue-Vandring',
-        detail: `Albuerne drev fremad med Δ${Math.round(peakDrift)}° ift. overkroppen. Hold albuerne fikseret i siden.`,
-        evidence: `Overarmsbevægelse ≥16° registreret på reps: ${reps.filter(r => (r.secondaryROM || 0) >= 16).map(r => r.index).join(', ')}.`,
+        title: 'Relativ Overarmsbevægelse Registreret',
+        detail: `Overarmens vinkel ændrede sig op til Δ${Math.round(peakDrift)}° i forhold til startpositionen.`,
+        evidence: `Relativ overarmsbevægelse ≥16° blev målt på reps: ${reps.filter(r => (r.secondaryROM || 0) >= 16).map(r => r.index).join(', ')}.`,
         severity: 'warning',
         affectedReps: reps.filter(r => (r.secondaryROM || 0) >= 16).map(r => r.index)
       });
     } else {
       observations.push({
         id: 'triceps.form.strict',
-        title: 'Strikt Triceps-Ekstension',
-        detail: `Albuerne forblev fastlåst med fuld ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°) ekstension på alle gentagelser.`,
-        evidence: `Fuld ekstension uden skuldersving.`,
+        title: 'Lav Relativ Overarmsbevægelse',
+        detail: `Overarmens vinkel ændrede sig højst Δ${Math.round(peakDrift)}° over sættet, mens albuevinklen nåede ~${Math.round(romStats.mean)}° (±${romStats.stdDev}°).`,
+        evidence: `Relativ overarmsbevægelse forblev under den nuværende 16°-reference.`,
         severity: 'positive',
         affectedReps: reps.map(r => r.index)
       });
@@ -586,7 +585,7 @@ export class TricepsPushdownAnalyzer implements ExerciseAnalyzer {
       romScore,
       consistencyScore,
       tempoScore,
-      primaryObservation: observations[0]?.detail || `Rent triceps pushdown sæt med ${reps.length} gentagelser ved ~${Math.round(romStats.mean)}° ekstension.`,
+      primaryObservation: observations[0]?.detail || `Triceps pushdown med ${reps.length} gentagelser ved ~${Math.round(romStats.mean)}° albuevinkel.`,
       observations,
       repCount: reps.length,
       meanROM: romStats.mean,
@@ -708,17 +707,17 @@ export class ShoulderPressAnalyzer implements ExerciseAnalyzer {
       observations.push({
         id: 'press.bilateral.asymmetry',
         title: 'Bilateral Arm-Asymmetri Registreret',
-        detail: `Registrerede i gennemsnit ${Math.round(asymStats.mean)}° asymmetri mellem højre og venstre arms stræk.`,
-        evidence: `Asymmetrisk stræk på reps: ${reps.filter(r => (r.secondaryROM || 0) >= 12).map(r => r.index).join(', ')}.`,
+        detail: `Der blev målt i gennemsnit ${Math.round(asymStats.mean)}° forskel mellem højre og venstre arms stræk.`,
+        evidence: `Forskel ≥12° på reps: ${reps.filter(r => (r.secondaryROM || 0) >= 12).map(r => r.index).join(', ')}.`,
         severity: 'warning',
         affectedReps: reps.filter(r => (r.secondaryROM || 0) >= 12).map(r => r.index)
       });
     } else {
       observations.push({
         id: 'press.lockout.symmetry',
-        title: 'Symmetrisk Overhoved-Ekstension',
-        detail: `Højre og venstre arm bevægede sig symmetrisk inden for ~${Math.round(asymStats.mean)}° afvigelse over alle ${reps.length} gentagelser.`,
-        evidence: `Symmetrisk justering bekræftet fra målingerne.`,
+        title: 'Lav Bilateral Forskel',
+        detail: `Højre og venstre arm lå inden for ~${Math.round(asymStats.mean)}° gennemsnitlig forskel over ${reps.length} gentagelser.`,
+        evidence: `Bilateral forskel målt fra de tilgængelige leddata.`,
         severity: 'positive',
         affectedReps: reps.map(r => r.index)
       });
@@ -771,7 +770,6 @@ export function getAnalyzerForExercise(type: ExerciseType): ExerciseAnalyzer {
       return new ShoulderPressAnalyzer();
   }
 }
-
 
 function missingSecondaryObservation(): FormObservation {
   return { id: 'tracking.secondary.unavailable', title: 'Utilstrækkelige målinger',
