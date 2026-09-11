@@ -21,7 +21,7 @@ export type ExerciseType =
 
 export type CameraViewType = 'side' | 'front45' | 'front';
 
-export type ExerciseTier = 'TIER_A_VERIFIED' | 'TIER_B_EXPERIMENTAL';
+export type ExerciseTier = 'TIER_A_SUPPORTED' | 'TIER_B_EXPERIMENTAL';
 
 export interface ExerciseDefinition {
   id: ExerciseType;
@@ -45,7 +45,7 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     supportedViews: ['side', 'front45', 'front'],
     keyMetrics: ['Bevægelsesbane (ROM)', 'Skuldersvaj (Δθ)', 'Tempo (Løft/Sænk)', 'Gentagelser'],
     status: 'ACTIVE',
-    tier: 'TIER_A_VERIFIED'
+    tier: 'TIER_A_SUPPORTED'
   },
   tricepsPushdown: {
     id: 'tricepsPushdown',
@@ -54,9 +54,9 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'arms',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Bundstræk (Lockout)', 'Overarms-stabilitet', 'Tempo (Løft/Sænk)', 'Gentagelser'],
+    keyMetrics: ['Albuevinkel / ROM', 'Overarms-stabilitet', 'Tempo (Løft/Sænk)', 'Gentagelser'],
     status: 'ACTIVE',
-    tier: 'TIER_A_VERIFIED'
+    tier: 'TIER_A_SUPPORTED'
   },
   squat: {
     id: 'squat',
@@ -65,9 +65,9 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'legs',
     recommendedView: 'side',
     supportedViews: ['side', 'front45', 'front'],
-    keyMetrics: ['Knæbøjning (Dybde ≤88°)', 'Ensartethed (±σ)', 'Træthedstab', 'Gentagelser'],
+    keyMetrics: ['Knævinkel / ROM', 'Ensartethed (±σ)', 'ROM-ændring', 'Gentagelser'],
     status: 'ACTIVE',
-    tier: 'TIER_A_VERIFIED'
+    tier: 'TIER_A_SUPPORTED'
   },
   legPress: {
     id: 'legPress',
@@ -76,9 +76,9 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'legs',
     recommendedView: 'side',
     supportedViews: ['side', 'front45'],
-    keyMetrics: ['Knæbøjning / Dybde', 'Slædestabilitet', 'Tempo', 'Gentagelser'],
+    keyMetrics: ['Knævinkel / ROM', 'Ensartethed', 'Tempo', 'Gentagelser'],
     status: 'ACTIVE',
-    tier: 'TIER_A_VERIFIED'
+    tier: 'TIER_A_SUPPORTED'
   },
   shoulderPress: {
     id: 'shoulderPress',
@@ -87,22 +87,22 @@ export const EXERCISES: Record<ExerciseType, ExerciseDefinition> = {
     category: 'push',
     recommendedView: 'front',
     supportedViews: ['front', 'front45', 'side'],
-    keyMetrics: ['Topstræk (≥165°)', 'Højre/Venstre Balance', 'Tempo', 'Gentagelser'],
+    keyMetrics: ['Albuevinkel / ROM', 'Højre/Venstre forskel', 'Tempo', 'Gentagelser'],
     status: 'ACTIVE',
-    tier: 'TIER_A_VERIFIED'
+    tier: 'TIER_A_SUPPORTED'
   }
 };
 
 export interface Point2D {
-  x: number; // 0 to 1
-  y: number; // 0 to 1
+  x: number;
+  y: number;
   score: number;
 }
 
 export interface Point3D {
   x: number;
   y: number;
-  z?: number; // Metric depth (meters from hips center in 3D world coordinates)
+  z?: number;
   score: number;
 }
 
@@ -118,8 +118,8 @@ export type JointName =
 export interface PoseFrame {
   timestamp: number;
   joints: Partial<Record<JointName, Point2D>>;
-  aspectRatio?: number; // Video width / height for normalized 2D fallback geometry
-  worldJoints?: Partial<Record<JointName, Point3D>>; // Metric 3D world landmarks from MediaPipe
+  aspectRatio?: number;
+  worldJoints?: Partial<Record<JointName, Point3D>>;
   confidence: number;
 }
 
@@ -131,8 +131,8 @@ export interface Repetition {
   duration: number;
   concentricDuration: number;
   eccentricDuration: number;
-  primaryROM: number; // e.g. angle in degrees
-  secondaryROM?: number; // e.g. relative drift or bilateral asymmetry in degrees
+  primaryROM: number;
+  secondaryROM?: number;
   confidence: number;
 }
 
@@ -158,14 +158,14 @@ export interface SetAnalysis {
   observations: FormObservation[];
   repCount: number;
   meanROM: number;
-  romStdDev: number; // Sample standard deviation of ROM (degrees)
+  romStdDev: number;
   meanDuration: number;
-  tempoStdDev: number; // Sample standard deviation of duration (seconds)
+  tempoStdDev: number;
   concentricMean: number;
   eccentricMean: number;
-  peakRelativeDrift?: number; // Max relative angular drift from baseline setup (degrees)
-  meanAsymmetry?: number; // Mean bilateral difference |L - R| (degrees)
-  earlyLateROMDelta?: number; // Decay in degrees between early and late reps
+  peakRelativeDrift?: number;
+  meanAsymmetry?: number;
+  earlyLateROMDelta?: number;
   stabilityStatus: FormStabilityStatus;
 }
 
@@ -184,13 +184,13 @@ export interface RecordedSet {
   date: string;
   reps: Repetition[];
   analysis: SetAnalysis;
-  videoUrl?: string; // In-memory Blob Object URL for video playback replay
+  videoUrl?: string;
 }
 
 export interface WorkoutSessionAnalysis {
   totalSets: number;
   totalReps: number;
-  fatigueIndex: number | null; // 0 - 100
+  fatigueIndex: number | null;
   romTrend: 'stable' | 'degrading' | 'improving';
   tempoTrend: 'stable' | 'slowing' | 'accelerating';
   sessionObservations: FormObservation[];
