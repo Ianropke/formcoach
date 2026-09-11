@@ -1,8 +1,8 @@
 import React from 'react';
 import { RecordedSet, EXERCISES } from '../core/models';
-import { CrossSetFatigueAnalyzer } from '../core/fatigueAnalyzer';
+import { CrossSetDriftAnalyzer } from '../core/driftAnalyzer';
 import { PersonalBaselineEngine } from '../core/baselineEngine';
-import { Trophy, ArrowLeft, CheckCircle2, Flame } from 'lucide-react';
+import { Trophy, ArrowLeft, Flame } from 'lucide-react';
 
 interface Props {
   sets: RecordedSet[];
@@ -19,12 +19,11 @@ export const WorkoutSummaryView: React.FC<Props> = ({
 }) => {
   const primaryExercise = sets[0]?.exercise || 'bicepsCurl';
   const exerciseDef = EXERCISES[primaryExercise] || Object.values(EXERCISES)[0];
-  const sessionAnalysis = CrossSetFatigueAnalyzer.analyzeSession(sets);
+  const sessionAnalysis = CrossSetDriftAnalyzer.analyzeSession(sets);
   const baseline = PersonalBaselineEngine.computeBaseline(allHistory, primaryExercise);
 
   return (
     <div className="flex flex-col h-full bg-black px-4 pt-3 pb-6 max-w-md mx-auto overflow-y-auto">
-      {/* Top Header */}
       <div className="flex items-center justify-between mb-3">
         <button
           onClick={onDone}
@@ -42,33 +41,30 @@ export const WorkoutSummaryView: React.FC<Props> = ({
         {exerciseDef.name} Opsummering
       </h1>
 
-      {/* Session Fatigue Gauge Card */}
       <div className="p-4 bg-neutral-950 rounded-2xl border border-white/10 mb-3">
         <div className="flex items-center justify-between mb-2">
           <div className="flex items-center gap-1.5 text-xs font-bold uppercase text-neutral-400">
             <Flame className="w-4 h-4 text-orange-400" />
-            <span>ÆNDRING MELLEM SÆT</span>
+            <span>PERFORMANCE DRIFT MELLEM SÆT</span>
           </div>
           <div className="text-xs font-black text-[#00E676]">
-            {sessionAnalysis.fatigueIndex === null ? 'UTILSTRÆKKELIGT GRUNDLAG' : 'HEURISTISK INDEKS'}
+            {sessionAnalysis.performanceDriftIndex === null ? 'UTILSTRÆKKELIGT GRUNDLAG' : 'HEURISTISK INDEKS'}
           </div>
         </div>
 
         <div className="flex items-baseline gap-2 mb-2">
-          <div className="text-4xl font-black text-white">{sessionAnalysis.fatigueIndex ?? '—'}</div>
-          <div className="text-xs text-neutral-400 font-semibold">/ 100 · Ikke målt udmattelse</div>
+          <div className="text-4xl font-black text-white">{sessionAnalysis.performanceDriftIndex ?? '—'}</div>
+          <div className="text-xs text-neutral-400 font-semibold">/ 100 · Bevægelses-/tempoændring, ikke fysiologisk træthed</div>
         </div>
 
-        {/* Progress Bar */}
         <div className="w-full h-2.5 bg-neutral-900 rounded-full overflow-hidden">
           <div
             className="h-full bg-gradient-to-r from-[#00E676] via-yellow-400 to-red-500 rounded-full transition-all duration-1000"
-            style={{ width: `${sessionAnalysis.fatigueIndex ?? 0}%` }}
+            style={{ width: `${sessionAnalysis.performanceDriftIndex ?? 0}%` }}
           />
         </div>
       </div>
 
-      {/* Personal Baseline / PB Insight */}
       <div className="p-4 bg-neutral-950 rounded-2xl border border-[#00E676]/30 mb-3">
         <div className="flex items-center gap-2 mb-1.5">
           <Trophy className="w-4 h-4 text-[#FFEB3B]" />
@@ -81,7 +77,6 @@ export const WorkoutSummaryView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Set-by-Set Breakdown Table */}
       <div className="bg-neutral-950 rounded-2xl border border-white/10 p-3.5 mb-4">
         <div className="text-xs font-bold uppercase text-neutral-400 tracking-wider mb-2.5">
           Sæt-for-sæt Forløb
@@ -112,7 +107,6 @@ export const WorkoutSummaryView: React.FC<Props> = ({
         </div>
       </div>
 
-      {/* Done Button */}
       <button
         onClick={onDone}
         className="mt-auto w-full bg-[#00E676] hover:bg-[#00E676]/90 text-black font-extrabold text-base py-4 rounded-2xl shadow-lg shadow-[#00E676]/20 active:scale-[0.98] transition-transform"
