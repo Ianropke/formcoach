@@ -1,108 +1,83 @@
-# FormCoach — Autonomous Agent Contract & Architectural Invariants
+# FormCoach — repository contract
 
-This document governs the engineering standards, architectural invariants, and constraints that **ALL AI agents and contributors MUST follow** when modifying the FormCoach codebase.
+FormCoach is a local-first strength-training form coach. The canonical runtime is the Web PWA in `web/`: React + TypeScript + MediaPipe Tasks Vision running on-device in the browser. The older Swift/SwiftUI implementation and milestone reports are historical unless a task explicitly targets them.
 
-## 0. Working Mode
+This file is a concise contract and router. Load deeper context only when the active task needs it.
 
-Default to `ONE BUILDER → IMPLEMENT → TARGETED TEST → RELEVANT BUILD/SUITE → STOP`. Use minimal reads and no subagent/full-repository review by default. Changes to pose analysis, privacy, storage, camera gating, or release behavior are high risk and receive deeper validation plus a separate skeptical gate. Stop when acceptance criteria and relevant checks pass.
+## Context routing
 
----
+- Product scope and user experience → `PRODUCT.md`.
+- Current architecture and data flow → `ARCHITECTURE.md`.
+- Pose/analysis math → `ANALYSIS_ENGINE.md` and the affected code under `web/src/core/`.
+- Exercise-specific rules → `EXERCISE_ANALYZERS.md` plus the relevant analyzer implementation/tests.
+- Privacy/local-storage behavior → `PRIVACY.md`, `web/src/core/storage.ts`, and `web/src/vision/`.
+- Current implementation and evidence state → `docs/PROJECT_STATE.md`.
+- Future direction → `ROADMAP.md`.
+- Historical native-iOS milestone evidence → `docs/archive/native-ios/`.
 
-## 1. Absolute Epistemic & Architectural Invariants (Non-Negotiable)
+Do not read every document before every edit. Inspect the implementation and tests for the affected surface.
 
-### 1.1 Local-First & Zero-Cloud Inference
-- **Canonical Runtime:** Web PWA (React 19 + TypeScript + `@mediapipe/tasks-vision` WASM/WebGL running 100% on-device).
-- **Zero Cloud Vision:** Video frames, camera streams, and pose landmarks MUST NEVER leave the user's device.
-- **Zero Cost:** Recurring operational cost for vision and kinematic analysis MUST remain **0 DKK**.
-- **No Paid AI APIs:** NEVER add network requests, backend endpoints, or cloud SDKs (OpenAI, Gemini, Anthropic) for exercise analysis.
+## Durable invariants
 
-### 1.2 Deterministic Kinematics & Zero Fabricated Data ("Anti-Mocking Rule")
-- **Pure Vector Geometry:** Biomechanical metrics (joint angles, ROM, tempo, consistency, bilateral asymmetry $| \theta_L - \theta_R |$) MUST be computed mathematically from observed 3D/2D landmark vectors.
-- **Zero Fabricated Tracking:** NEVER synthesize fake coordinates, synthetic timers, or fallback 90+ scores when tracking fails or when no user is in frame.
-- **Explicit Insufficient Data State:** If tracking confidence or joint visibility is inadequate, mark status explicitly as `Insufficient Data / Repetitions Not Detected`.
+### Local-first privacy and cost
 
-### 1.3 Dynamic Camera Quality Gate Invariant
-- **Pre-Flight Framing Check:** The workout recording countdown MUST NEVER start until the `CameraQualityGate` dynamically validates that the athlete is properly positioned in frame:
-  - Full-body joint visibility $> 0.65$.
-  - Landmark tracking confidence $> 0.65$.
-  - Athlete vertical scale within optimal framing bounds ($0.45 \le \text{scale} \le 0.90$).
+- Camera frames, recorded workout video, and pose landmarks must not be uploaded for exercise analysis.
+- Do not add paid/cloud AI inference to the core exercise-analysis path without an explicit owner decision.
+- Do not add facial identification, biometric identity profiles, or user tracking.
+- Preserve explicit cleanup of temporary video Object URLs and local-history integrity.
 
-### 1.4 Strict Domain Decoupling
-- **Vision Layer:** `PoseLandmarkerService` MUST be completely decoupled from exercise logic. It emits raw `PoseFrame` streams with normalized timestamps.
-- **Analyzer Layer:** Exercise Analyzers (e.g. `SquatAnalyzer`, `BicepCurlAnalyzer`, `ShoulderPressAnalyzer`) consume domain `PoseFrame` models and implement pure state machines.
+### Measurement before interpretation
 
-### 1.5 Zero Privacy & Identity Compromise
-- **No Biometric Identification:** NEVER collect, store, or transmit facial identification vectors or biometric identity profiles.
-- **Multi-Person Discard:** Secondary background persons in the frame MUST be discarded; only the primary foreground athlete is analyzed.
+FormCoach observes visible movement kinematics; it does not observe internal tissue load, pain, injury state, muscle activation, intent, exertion, or the cause of a movement change.
 
-### 1.6 Descriptive Feedback & No Medical Claims
-- **Kinematic Descriptions Only:** Form feedback MUST be descriptive and biomechanical (e.g. *"Knee flexion angle decreased by 12°"* or *"Shoulder drift detected"*).
-- **Zero Pathology Claims:** NEVER claim injury diagnosis, pain causality, joint safety pathology, or medical guarantees.
+- Compute angles, ROM, timing, asymmetry, consistency, and other metrics from observed landmarks.
+- Never fabricate landmarks, repetitions, scores, baselines, or fallback measurements when tracking is inadequate.
+- Use an explicit insufficient-data state when the required signal is not present.
+- Keep causal claims out of feedback unless the cause is directly measured. Prefer `ROM decreased late in the set` over `fatigue caused ROM loss`.
+- Do not turn heuristic thresholds into universal medical, safety, or physiological claims.
+- Personal/reference targets may be used when clearly labelled as product/coaching targets rather than biological truths.
 
-### 1.7 Real-Time Web Audio & Earbud Feedback
-- **Zero-Latency Sound Cues:** Web Audio API tone synthesis MUST be used for instantaneous depth/ROM milestone chimes ($\le 88^\circ$) to eliminate screen-watching during lifts.
-- **Danish Speech Synthesis:** Web Speech API provides Danish rep counts and set completion announcements without network dependencies.
-- **Gesture Audio Unlock:** Audio context MUST be initialized and unlocked during explicit user interaction (e.g., countdown start).
+### Evidence levels
 
-### 1.8 3D World Landmark Metric Invariance
-- **Metric 3D Geometry:** Joint kinematics MUST prioritize MediaPipe `worldLandmarks` ($x, y, z$ in meters) via $\arccos\frac{\vec{u}\cdot\vec{v}}{\|\vec{u}\|\|\vec{v}\|}$ to remain mathematically invariant to camera pitch and perspective skew.
-- **Profile & Dominant Limb Selection:** Analyzers must auto-select the dominant limb with highest confidence to withstand equipment occlusion.
+Keep these separate:
 
-### 1.9 In-Memory Video Replay & Zero-Leak Memory Safety
-- **RAM-Only Temporary Blobs:** Workout video recordings are stored as ephemeral in-memory Blobs for immediate rep-scrubbing ($0.75\times$ slowmotion).
-- **Mandatory Buffer Revocation:** All video Object URLs MUST be immediately revoked (`URL.revokeObjectURL`) upon set discard or session completion to prevent memory leaks on mobile devices.
+1. **Code correctness** — typecheck/lint/build and deterministic tests.
+2. **Algorithmic validation** — synthetic fixtures/regression tests show that math and state machines behave as specified on controlled inputs.
+3. **Empirical field validation** — real people, real iPhone/Safari camera conditions, annotated ground truth, and measured error rates.
 
-### 1.10 Adaptive Camera Flexibility & Auto-Calibration
-- **0.5x Ultra-Wide & Zoom:** Camera stream supports dynamic 0.5x ultra-wide lens selection for full-body tracking at 1.2m distance in compact gym areas.
-- **Floor-Placement Auto-Calibration:** When the phone is placed on the floor leaning at $+15^\circ$ to $+35^\circ$, `CameraCalibrator` dynamically detects pitch and calibrates references to the athlete's gravitational vertical axis.
+Tier 1–2 evidence must not be described as proving real-world accuracy, reliability, safety, or clinical validity. Exercise support in code is not the same as empirical field validation.
 
----
+### Deterministic domain separation
 
-## 2. Engineering Quality & Verification Gates
+- Pose estimation emits pose data; exercise analyzers interpret it.
+- Keep exercise state machines and scoring deterministic and testable.
+- Preserve primary-athlete selection and discard secondary-person pose data from analysis.
+- Camera/setup heuristics are quality proxies, not physical sensor measurements unless backed by an actual sensor/reference.
 
-Select gates by the changed surface. During development run the narrowest relevant test; at completion run the relevant build/suite. Run every gate only for broad changes, release work, or when the affected contract requires it:
-1. **Unit & Mathematical Regression Testing:** `npm test` runs the deterministic biomechanics test suite (`src/tests/testSuite.ts` & `src/tests/goldenDataset.ts`) covering vector geometry, state machines, fatigue detection, and baselines on synthetic frames.
-2. **Build Validation:** `npm run build` (`tsc -b && vite build`) passes with 0 type errors.
-3. **Zero Console Errors:** Automated headless browser inspection must verify 0 console errors, 0 page errors, and valid PWA assets (192x192, 512x512 icons, manifest, service worker).
-4. **Discards are Final:** Discarding a recorded set MUST immediately drop memory buffers and never write to persistent baseline storage.
+### Medical boundary
 
----
+Feedback may describe visible movement and compare it with a configured/personal target. It must not diagnose injury, explain pain causality, claim that a movement is medically safe/unsafe, or imply that a specific joint angle guarantees muscle activation or injury prevention.
 
-## 3. Epistemic Hierarchy & "Builder vs. Skeptic" Governance
+## Working loop
 
-All contributors and AI agents must strictly adhere to the 3-Tier Evidence Hierarchy:
+Within the requested scope, inspect relevant files, implement, run focused checks, fix failures caused by the change, and rerun affected checks without asking for approval at each reversible step.
 
-```
-[Tier 1: Kodekorrekthed]
-  ↳ Typecheck (tsc), Lint, Clean Builds, Zero Console Errors
-      ↓
-[Tier 2: Algoritmisk Validering]
-  ↳ Syntetiske regressionstests (testSuite & synthetic benchmarks)
-  ↳ Beviser at matematikken & state-machinen virker på perfekte data
-      ↓
-[Tier 3: Empirisk Feltvalidering]
-  ↳ Reel person foran iPhone-kamera i fitnesscenter (støj, lys, vinkler, occlusion)
-  ↳ Målt mod menneskelig ground-truth (MAE på reps, Sensitivity/Specificity på fejl)
-```
+Use additional agents/review only when they add concrete value such as independent high-risk review, bounded parallel exploration, or context isolation. Neither a single-builder rule nor a swarm is mandatory.
 
-### 3.1 The Builder vs. Skeptic Rule
-- **Agent Role (Builder):** The agent builds, refactors, secures, and runs Tier 1 & Tier 2 checks.
-- **Separate Gate:** Skeptical review and Tier 3 field validation happen after a coherent builder result when risk or acceptance requires them; they are not repeated inside the builder loop.
-- **Language Prohibition:** Agents are **STRICTLY PROHIBITED** from using phrases such as *"validated"*, *"production-ready"*, *"works reliably in real life"*, or *"ingen kode-genveje tilbage"* solely on the basis of Tier 1 & Tier 2 tests.
-- **Permitted Phrasing:** Agents MUST state precisely what was tested: e.g. *"17/17 deterministic regression tests pass on synthetic vector inputs. Real-world vision accuracy remains unvalidated pending Tier 3 field testing."*
+Stop for a genuine owner decision or protected boundary: privacy regression, external transmission of workout data, paid-resource expansion, destructive/irreversible data changes, production-impacting changes, or a material unresolved product/architecture decision.
 
-### 3.2 Canonical PureGym Field Test Protocol (Tier 3 Baseline)
-When field-testing in reality, execute these 6 standardized recording sets:
+## Verification
 
-| Test Set | Physical Execution | Expected FormCoach Behavior |
-|---|---|---|
-| **1. Strict Curls** | 10 clean, controlled bicep curls | 9–10 reps, peak drift $< 10^\circ$, positive isolation observation |
-| **2. Cheat Curls** | 10 curls with deliberate torso/shoulder swing | 9–10 reps, peak drift $\ge 15^\circ$, `Shoulder Momentum Swing Detected` warning |
-| **3. Incomplete ROM Curls** | 10 half-reps (stopping at 90°) | Rep count tracked + shallow flexion score / observation |
-| **4. Parallel Squats** | 10 deep squats to parallel ($\le 88^\circ$) | 9–10 reps, parallel depth observation |
-| **5. Shallow Squats** | 10 deliberately high squats ($> 105^\circ$) | Shallow depth warning triggered (distinct from Test 4) |
-| **6. Adverse Camera Setup** | Standing too close ($<1\text{m}$) or partially obscured | `CameraQualityGate` strictly blocks recording countdown |
+Select checks by the affected surface. Common commands:
 
-Field metrics must report:
-- **Rep Count Mean Absolute Error:** $\text{MAE} = \frac{1}{n}\sum |\text{FormCoach reps} - \text{actual reps}|$
-- **Flaw Detection Sensitivity & Specificity** relative to self-annotated ground truth.
+- `npm run test`
+- `npm run build`
+- `cd web && npm run lint`
+
+Use focused tests during iteration and broader checks at meaningful boundaries. Do not claim a check passed unless it ran.
+
+For coaching/biomechanics changes, verify both the numeric output and the wording: measured data must remain distinguishable from inference or interpretation.
+
+## Completion
+
+Do not stop at the first plausible implementation. Continue until the requested behavior exists, relevant checks pass, failures caused by the change are resolved, documentation matches the canonical PWA, and any remaining blocker genuinely requires field evidence, a human decision, or an unavailable capability.
