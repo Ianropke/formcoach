@@ -190,7 +190,9 @@ export interface RecordedSet {
 export interface WorkoutSessionAnalysis {
   totalSets: number;
   totalReps: number;
-  fatigueIndex: number | null;
+  performanceDriftIndex: number | null;
+  /** @deprecated Compatibility alias. Use performanceDriftIndex in new code. */
+  fatigueIndex?: number | null;
   romTrend: 'stable' | 'degrading' | 'improving';
   tempoTrend: 'stable' | 'slowing' | 'accelerating';
   sessionObservations: FormObservation[];
